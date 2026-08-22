@@ -1,0 +1,55 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Firebase / service account keys - never commit these
+*firebase-adminsdk*.json
+*service-account*.json
+
+# Firebase emulator artifacts
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+database-debug.log
+pubsub-debug.log
+.firebase/
+
+# The copied-in Next.js public website.
+# It is NOT part of this demo - nothing in src/ imports from it, and the demo
+# builds and runs without it. It is excluded from this repo for two reasons:
+# it is ~900MB, and website/.env.local holds a live Firebase Admin private key
+# for the real client project, which has no business being in a demo repo.
+website/
+
+# Belt and braces: no env file of any name, at any depth, ever gets committed.
+.env
+.env.*
+!.env.example
