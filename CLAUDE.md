@@ -8,14 +8,23 @@ project, so a demo can never be deployed to a client or reach client data.
 
 ### What is deliberately NOT in the repo
 
-`website/` is gitignored. It is a copied-in Next.js public site that nothing in `src/`
-imports, the demo builds and runs without it, it is ~900MB, and - the real reason -
-`website/.env.local` inside it holds a **live Firebase Admin private key for the client's
-real project.** That has no business sitting in a demo repo.
+`website/` — **deleted from this folder on 22 Aug 2026, and gitignored so it cannot come
+back.** It was a copied-in Next.js public site that nothing in `src/` imports and the demo
+builds fine without. It was ~900MB, and the real reason it had to go: `website/.env.local`
+inside it held a **live Firebase Admin private key for the client's real project.** A demo
+folder is the last place that should live.
 
-So the claim below that "this build needs no credentials" is true of the demo app, but it is
-not true of this folder on disk. If you are ever asked to force-add a file here, or to widen
-the ignore rules, stop and check what you are about to publish.
+The real one is still at `Deepthi Construction/website/`, untouched — that is where it
+belongs, and the client project's admin scripts read their credentials from it.
+
+So "this build needs no credentials" is now true of the folder as well as the app. Keep it
+that way: the ignore rules refuse any `.env` file at any depth. If you are ever asked to
+force-add a file here or widen those rules, stop and check what you are about to publish.
+
+Also kept out for the same reason: `scripts/`, which held four scripts pointing at the
+client's live database (one of them deletes documents), plus `firebase.json`,
+`firestore.rules`, `storage.rules` and `.env.example`, which described a backend this build
+does not have. They all still exist in the client project.
 
 A sales copy of `Deepthi Construction`, used to show builders and construction firms what a
 site-and-money system looks like — material spend per site, labour attendance, customer
