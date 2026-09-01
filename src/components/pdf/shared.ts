@@ -31,7 +31,7 @@ export const commonStyles = StyleSheet.create({
    *  smaller pushes it back toward the page edge. */
   letterheadLogo: {
     position: 'absolute',
-    left: 110,
+    left: 70,
     top: 0,
     width: 62,
     height: 62,
