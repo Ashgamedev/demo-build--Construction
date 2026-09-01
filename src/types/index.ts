@@ -298,7 +298,18 @@ export interface AgreementVersion {
   };
   
   showOwnerSignature?: boolean;
-  
+
+  /** Scanned image or PDF of the physical Rs. 100 non-judicial stamp paper the
+   *  agreement will be printed on. Kept as an attachment for the record. */
+  stampPaperUrl?: string;
+  stampPaperFileName?: string;
+  stampPaperUploadedAt?: number;
+
+  /** When true, the generated PDF is laid out to be printed onto a real
+   *  stamp paper: the top of page one is left blank for the pre-printed stamp
+   *  header, and the Deepthi letterhead is suppressed. */
+  printOnStampPaper?: boolean;
+
   // Override tracking (for locking with schedule mismatch)
   overrideReason?: string;
   overrideBy?: string;
@@ -488,6 +499,33 @@ export interface Expense {
   updatedByName?: string;
 }
 
+/**
+ * A single payment can settle several things at once - part of a scheduled
+ * milestone, part of a variation the customer just approved, and part on
+ * account. Each of those is an allocation; the sum of allocations equals the
+ * total received.
+ *
+ * Old payments were single-purpose and have no allocations array; they render
+ * as one implicit "General collection" line so nothing existing breaks.
+ */
+export type PaymentPurpose =
+  | 'milestone'      // Scheduled milestone tied to a stage
+  | 'advance'        // Money taken before work starts
+  | 'variation'      // Extra work agreed after the contract was signed
+  | 'general'        // No specific purpose - on account
+  | 'other';         // Free-text - forces a description
+
+export interface PaymentAllocation {
+  id: string;
+  amount: number;
+  purpose: PaymentPurpose;
+  /** Only meaningful when purpose === 'milestone'. Refers to Project.stages[].id. */
+  stageId?: string;
+  /** Free text - always shown on the receipt so the customer knows what the
+   *  money settles. */
+  description?: string;
+}
+
 export interface CustomerPayment {
   id: string;
   customerId: string;
@@ -499,6 +537,9 @@ export interface CustomerPayment {
   paymentMode: 'cash' | 'UPI' | 'bank transfer' | 'cheque';
   referenceNumber?: string;
   notes?: string;
+  /** Detailed breakdown of what this payment settles. Sum of amounts equals
+   *  the top-level amount. Absent on legacy records - callers must handle. */
+  allocations?: PaymentAllocation[];
   receivedBy: string; // user ID
   receiptGenerated: boolean;
   receiptId?: string;
@@ -513,6 +554,16 @@ export interface ReceiptSnapshot {
   paymentMode: string;
   date: number;
   remainingBalance: number;
+  /** Frozen at receipt time so a printed receipt keeps the breakdown even if
+   *  the payment record is edited later (which shouldn't happen, but a snapshot
+   *  is the guarantee). Each entry carries a resolved stageName rather than a
+   *  raw stageId, so the printed receipt reads as words. */
+  allocations?: Array<{
+    amount: number;
+    purpose: PaymentPurpose;
+    stageName?: string;
+    description?: string;
+  }>;
   companySettings: CompanySettings;
 }
 

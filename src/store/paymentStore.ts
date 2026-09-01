@@ -17,7 +17,8 @@ interface PaymentState {
     paymentData: Omit<CustomerPayment, 'id' | 'createdAt' | 'receiptGenerated' | 'receiptId'>,
     clientName: string,
     projectName: string,
-    contractValue: number // Total agreed value; the balance is derived from it
+    contractValue: number, // Total agreed value; the balance is derived from it
+    receiptAllocations?: NonNullable<ReceiptSnapshot['allocations']>
   ) => Promise<{ receiptId: string; remainingBalance: number }>;
 }
 
@@ -50,7 +51,7 @@ export const usePaymentStore = create<PaymentState>((set) => ({
     };
   },
 
-  recordPaymentAndGenerateReceipt: async (paymentData, clientName, projectName, contractValue) => {
+  recordPaymentAndGenerateReceipt: async (paymentData, clientName, projectName, contractValue, receiptAllocations) => {
     try {
       const paymentRef = doc(collection(db, 'payments'));
       const receiptRef = doc(collection(db, 'receipts'));
@@ -107,6 +108,7 @@ export const usePaymentStore = create<PaymentState>((set) => ({
           paymentMode: paymentData.paymentMode,
           date: paymentData.date,
           remainingBalance,
+          allocations: receiptAllocations,
           companySettings
         };
         

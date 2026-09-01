@@ -5,9 +5,11 @@ import { useQuotationStore } from '../../store/quotationStore';
 import { useProjectStore } from '../../store/projectStore';
 import { useCustomerStore } from '../../store/customerStore';
 import { AgreementVersion } from '../../types';
-import { ArrowLeft, Save, Plus, Trash2, GripVertical, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Trash2, GripVertical, AlertTriangle, CheckCircle2, Upload, FileText, X } from 'lucide-react';
 import { PDFDownloadLink, PDFViewer } from '@react-pdf/renderer';
 import { AgreementPDF } from '../../components/pdf/AgreementPDF';
+import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { storage } from '../../lib/firebase';
 import {
   calculateMilestoneAmount,
   calculateMilestonePercentage,
@@ -179,6 +181,10 @@ export function AgreementBuilder() {
         showOwnerSignature: activeVersion.showOwnerSignature,
         language: activeVersion.language,
         tamilTranslations: activeVersion.tamilTranslations,
+        stampPaperUrl: activeVersion.stampPaperUrl,
+        stampPaperFileName: activeVersion.stampPaperFileName,
+        stampPaperUploadedAt: activeVersion.stampPaperUploadedAt,
+        printOnStampPaper: activeVersion.printOnStampPaper,
       });
       alert('Saved successfully');
     } catch (e: any) {
@@ -861,6 +867,11 @@ export function AgreementBuilder() {
               className="w-full border border-gray-300 rounded p-3 text-sm h-48 font-mono bg-gray-50"
             />
           </div>
+
+          <StampPaperPanel
+            agreement={activeVersion}
+            onChange={patch => setActiveVersion({ ...activeVersion, ...patch })}
+          />
         </div>
 
         {/* PDF Preview Sidebar */}
@@ -888,6 +899,165 @@ export function AgreementBuilder() {
             </PDFViewer>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The stamp paper panel. Two related things sit here because they belong to
+ * the same real-world workflow: he scans a blank Rs.100 non-judicial stamp
+ * paper to keep on record, and he prints his agreement onto that same physical
+ * stamp paper. Both live on the AgreementVersion so the record and the print
+ * setup stay together.
+ *
+ * The upload target is Firebase Storage. Uploads happen immediately (not on
+ * Save) so a failed upload is visible right away and the URL is captured; the
+ * file lives at agreements/{agreementId}/stamp-paper-* with a timestamp so a
+ * re-upload does not overwrite the previous one until the record itself is
+ * updated to point at the new file.
+ */
+function StampPaperPanel({
+  agreement,
+  onChange,
+}: {
+  agreement: AgreementVersion;
+  onChange: (patch: Partial<AgreementVersion>) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleUpload = async (file: File) => {
+    setError(null);
+    if (file.size > 8 * 1024 * 1024) {
+      setError('That file is over 8MB. Please pick a smaller scan.');
+      return;
+    }
+    if (!/^(image\/|application\/pdf)/.test(file.type)) {
+      setError('Only image files or a PDF are accepted.');
+      return;
+    }
+    setUploading(true);
+    try {
+      const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const path = `agreements/${agreement.agreementId}/stamp-paper-${Date.now()}-${safe}`;
+      const r = storageRef(storage, path);
+      await uploadBytes(r, file);
+      const url = await getDownloadURL(r);
+      onChange({
+        stampPaperUrl: url,
+        stampPaperFileName: file.name,
+        stampPaperUploadedAt: Date.now(),
+      });
+    } catch (e: any) {
+      setError('Upload failed: ' + (e?.message || e));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleRemove = async () => {
+    if (!agreement.stampPaperUrl) return;
+    const ok = window.confirm('Remove the attached stamp paper scan?');
+    if (!ok) return;
+    // The URL is what the record uses. Try to also remove the storage file, but
+    // don't fail the UI change if the delete errors - the record shouldn't be
+    // left pointing at a file just because cleanup couldn't complete.
+    try {
+      await deleteObject(storageRef(storage, agreement.stampPaperUrl));
+    } catch {
+      /* ignore - the record update below is what matters */
+    }
+    onChange({
+      stampPaperUrl: undefined,
+      stampPaperFileName: undefined,
+      stampPaperUploadedAt: undefined,
+    });
+  };
+
+  const attached = !!agreement.stampPaperUrl;
+
+  return (
+    <div className="bg-white rounded-lg shadow p-6 border border-gray-200 space-y-4">
+      <div className="border-b pb-2">
+        <h2 className="text-lg font-medium">Stamp Paper</h2>
+        <p className="text-xs text-gray-500 mt-1">
+          Attach a scan of the physical Rs. 100 stamp paper this agreement is written on, and
+          set the PDF to be printed onto that paper.
+        </p>
+      </div>
+
+      {error && (
+        <div className="p-3 bg-red-50 text-red-700 text-sm rounded border border-red-200">{error}</div>
+      )}
+
+      {attached ? (
+        <div className="flex items-start gap-3 p-3 bg-gray-50 border border-gray-200 rounded">
+          <FileText className="w-5 h-5 text-gray-500 mt-0.5 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium text-gray-900 truncate">
+              {agreement.stampPaperFileName || 'Attached scan'}
+            </div>
+            <a
+              href={agreement.stampPaperUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-blue-600 hover:underline"
+            >
+              View or download
+            </a>
+            {agreement.stampPaperUploadedAt && (
+              <div className="text-xs text-gray-500 mt-0.5">
+                Uploaded {new Date(agreement.stampPaperUploadedAt).toLocaleDateString('en-IN')}
+              </div>
+            )}
+          </div>
+          <button
+            onClick={handleRemove}
+            title="Remove"
+            className="p-1 text-gray-400 hover:text-red-600"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      ) : (
+        <label className="flex items-center justify-center gap-2 border-2 border-dashed border-gray-300 rounded-md p-6 cursor-pointer hover:border-blue-400 hover:bg-blue-50 text-sm text-gray-600">
+          <Upload className="w-5 h-5" />
+          <span>{uploading ? 'Uploading...' : 'Upload scan (image or PDF, up to 8MB)'}</span>
+          <input
+            type="file"
+            accept="image/*,application/pdf"
+            className="hidden"
+            disabled={uploading}
+            onChange={e => {
+              const f = e.target.files?.[0];
+              if (f) handleUpload(f);
+              e.currentTarget.value = '';
+            }}
+          />
+        </label>
+      )}
+
+      <label className="flex items-start gap-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={!!agreement.printOnStampPaper}
+          onChange={e => onChange({ printOnStampPaper: e.target.checked })}
+          className="mt-1 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+        />
+        <div className="text-sm">
+          <div className="font-medium text-gray-900">Print on stamp paper</div>
+          <div className="text-xs text-gray-500">
+            Leaves the top of page one blank and hides the letterhead, so the printed
+            agreement fits underneath the pre-printed stamp header on real Rs. 100 stamp paper.
+          </div>
+        </div>
+      </label>
+
+      <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+        <b>Before printing on stamp paper:</b> print one test copy on plain A4 first and hold
+        it against the stamp paper to check the spacing. Adjust the printer margins if the
+        text overlaps the stamp header.
       </div>
     </div>
   );

@@ -155,6 +155,42 @@ export function PaymentDetails() {
             </div>
           </div>
         </div>
+
+        {payment.allocations && payment.allocations.length > 0 && (
+          <div className="p-6 border-t border-gray-100">
+            <p className="text-sm text-gray-500 font-medium uppercase tracking-wider mb-3">What this payment settles</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-left text-xs text-gray-500 uppercase tracking-wider">
+                  <tr>
+                    <th className="py-2 pr-4">Purpose</th>
+                    <th className="py-2 pr-4">Details</th>
+                    <th className="py-2 text-right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {payment.allocations.map(a => {
+                    const label =
+                      a.purpose === 'milestone' ? 'Scheduled instalment' :
+                      a.purpose === 'advance' ? 'Advance' :
+                      a.purpose === 'variation' ? 'Variation / addition' :
+                      a.purpose === 'general' ? 'General collection' :
+                      'Other';
+                    return (
+                      <tr key={a.id}>
+                        <td className="py-2 pr-4 font-medium text-gray-900">{label}</td>
+                        <td className="py-2 pr-4 text-gray-700">{a.description || '-'}</td>
+                        <td className="py-2 text-right font-semibold text-gray-900 tabular-nums">
+                          ₹{a.amount.toLocaleString('en-IN')}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
       {showPreview && pdfBlobUrl && (

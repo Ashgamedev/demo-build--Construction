@@ -11,16 +11,27 @@ export function AgreementPDF({ agreement }: Props) {
   const isTa = agreement.language === 'ta';
   const t = agreement.tamilTranslations || {};
   const fontFamily = isTa ? 'NotoSansTamil' : undefined;
+  const onStamp = !!agreement.printOnStampPaper;
 
   const subject = isTa && t.subject ? t.subject : agreement.subject;
   const terms = isTa && t.termsAndConditions ? t.termsAndConditions : agreement.termsAndConditions;
   const scope = isTa && t.scopeOfWork ? t.scopeOfWork : agreement.scopeOfWork;
 
+  // A4 is 842pt tall. Indian Rs.100 non-judicial stamp paper carries the
+  // pre-printed matter across roughly the top third; 320pt gives a safe margin
+  // that clears the stamp area with the printer's usual y-offset. This is only
+  // applied to page one - subsequent pages spill onto plain paper.
+  const stampTopReserve = 320;
+
   return (
     <Document>
       <Page size="A4" style={{ ...commonStyles.page, fontFamily }}>
-        <Letterhead settings={agreement.companySnapshot} />
-        
+        {onStamp ? (
+          <View style={{ height: stampTopReserve }} />
+        ) : (
+          <Letterhead settings={agreement.companySnapshot} />
+        )}
+
         <Text style={{ ...commonStyles.title, fontFamily }}>CONSTRUCTION AGREEMENT</Text>
         
         <View style={{ marginBottom: 15, flexDirection: 'row', justifyContent: 'space-between' }}>

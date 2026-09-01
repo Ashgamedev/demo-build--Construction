@@ -7,25 +7,35 @@ interface Props {
   receipt: PaymentReceipt;
 }
 
+const PURPOSE_LABEL: Record<string, string> = {
+  milestone: 'Scheduled instalment',
+  advance: 'Advance',
+  variation: 'Variation / addition',
+  general: 'General collection',
+  other: 'Other',
+};
+
 export function ReceiptPDF({ receipt }: Props) {
   const { snapshot } = receipt;
+  const allocations = snapshot.allocations || [];
+  const hasBreakdown = allocations.length > 0;
 
   return (
     <Document>
       <Page size="A4" style={commonStyles.page}>
         <Letterhead settings={snapshot.companySettings} />
-        
+
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
           <Text style={{ fontSize: 10 }}>Receipt No: {receipt.receiptNumber}</Text>
           <Text style={{ fontSize: 10 }}>Date: {new Date(snapshot.date).toLocaleDateString()}</Text>
         </View>
-        
+
         <Text style={commonStyles.title}>Payment Receipt</Text>
-        
-        <View style={{ marginBottom: 20, gap: 10 }}>
+
+        <View style={{ marginBottom: 15, gap: 8 }}>
           <Text style={{ fontSize: 11, lineHeight: 1.5 }}>
-            Received with thanks from <Text style={{ fontWeight: 'bold' }}>{snapshot.clientName}</Text> 
-            {' '}the sum of <Text style={{ fontWeight: 'bold' }}>Rs. {snapshot.amountReceived.toLocaleString()}/-</Text>
+            Received with thanks from <Text style={{ fontWeight: 'bold' }}>{snapshot.clientName}</Text>
+            {' '}the sum of <Text style={{ fontWeight: 'bold' }}>Rs. {snapshot.amountReceived.toLocaleString('en-IN')}/-</Text>
           </Text>
           <Text style={{ fontSize: 11, lineHeight: 1.5 }}>
             Towards project: <Text style={{ fontWeight: 'bold' }}>{snapshot.projectName}</Text>
@@ -33,8 +43,39 @@ export function ReceiptPDF({ receipt }: Props) {
           <Text style={{ fontSize: 11, lineHeight: 1.5 }}>
             Payment Mode: <Text style={{ fontWeight: 'bold' }}>{snapshot.paymentMode.toUpperCase()}</Text>
           </Text>
+        </View>
+
+        {hasBreakdown && (
+          <View style={{ marginBottom: 15 }}>
+            <Text style={{ fontSize: 10, fontWeight: 'bold', marginBottom: 4 }}>Breakdown</Text>
+            <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderColor: '#333', paddingBottom: 3, marginBottom: 3 }}>
+              <Text style={{ fontSize: 9, fontWeight: 'bold', flex: 2 }}>Purpose</Text>
+              <Text style={{ fontSize: 9, fontWeight: 'bold', flex: 3 }}>Details</Text>
+              <Text style={{ fontSize: 9, fontWeight: 'bold', flex: 1.2, textAlign: 'right' }}>Amount</Text>
+            </View>
+            {allocations.map((a, i) => {
+              const purpose = PURPOSE_LABEL[a.purpose] || a.purpose;
+              const details = [a.stageName, a.description].filter(Boolean).join(' - ') || '-';
+              return (
+                <View key={i} style={{ flexDirection: 'row', paddingVertical: 3, borderBottomWidth: 0.5, borderColor: '#ccc' }}>
+                  <Text style={{ fontSize: 9, flex: 2 }}>{purpose}</Text>
+                  <Text style={{ fontSize: 9, flex: 3 }}>{details}</Text>
+                  <Text style={{ fontSize: 9, flex: 1.2, textAlign: 'right' }}>Rs. {a.amount.toLocaleString('en-IN')}</Text>
+                </View>
+              );
+            })}
+            <View style={{ flexDirection: 'row', paddingTop: 4, borderTopWidth: 1, borderColor: '#333', marginTop: 2 }}>
+              <Text style={{ fontSize: 10, fontWeight: 'bold', flex: 5 }}>Total received</Text>
+              <Text style={{ fontSize: 10, fontWeight: 'bold', flex: 1.2, textAlign: 'right' }}>
+                Rs. {snapshot.amountReceived.toLocaleString('en-IN')}
+              </Text>
+            </View>
+          </View>
+        )}
+
+        <View style={{ marginBottom: 20 }}>
           <Text style={{ fontSize: 11, lineHeight: 1.5 }}>
-            Remaining Balance: <Text style={{ fontWeight: 'bold' }}>Rs. {snapshot.remainingBalance.toLocaleString()}/-</Text>
+            Remaining Balance: <Text style={{ fontWeight: 'bold' }}>Rs. {snapshot.remainingBalance.toLocaleString('en-IN')}/-</Text>
           </Text>
         </View>
         

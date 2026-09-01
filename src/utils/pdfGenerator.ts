@@ -58,15 +58,46 @@ export function generateReceiptPDF(
   }
 
   // Payment Details Table
-  autoTable(doc, {
-    startY: 85,
-    head: [['Description', 'Payment Mode', 'Amount']],
-    body: [
-      [`Payment towards ${project.title}`, payment.paymentMode.toUpperCase(), `Rs. ${payment.amount.toLocaleString('en-IN')}`]
-    ],
-    theme: 'grid',
-    headStyles: { fillColor: [41, 128, 185] },
-  });
+  // When the payment has allocations, each is its own row and the payment mode
+  // sits in the last column of the totals band. When it's a single flat
+  // payment (no breakdown), the legacy single-row form is used.
+  const PURPOSE_LABEL: Record<string, string> = {
+    milestone: 'Scheduled instalment',
+    advance: 'Advance',
+    variation: 'Variation / addition',
+    general: 'General collection',
+    other: 'Other',
+  };
+  const allocations = payment.allocations || [];
+  if (allocations.length > 0) {
+    autoTable(doc, {
+      startY: 85,
+      head: [['Purpose', 'Details', 'Amount']],
+      body: [
+        ...allocations.map(a => {
+          const purpose = PURPOSE_LABEL[a.purpose] || a.purpose;
+          const details = [a.description || ''].filter(Boolean).join(' - ') || '-';
+          return [purpose, details, `Rs. ${a.amount.toLocaleString('en-IN')}`];
+        }),
+        [
+          { content: `Total  -  ${payment.paymentMode.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } } as any,
+          { content: `Rs. ${payment.amount.toLocaleString('en-IN')}`, styles: { fontStyle: 'bold' } } as any,
+        ],
+      ],
+      theme: 'grid',
+      headStyles: { fillColor: [41, 128, 185] },
+    });
+  } else {
+    autoTable(doc, {
+      startY: 85,
+      head: [['Description', 'Payment Mode', 'Amount']],
+      body: [
+        [`Payment towards ${project.title}`, payment.paymentMode.toUpperCase(), `Rs. ${payment.amount.toLocaleString('en-IN')}`]
+      ],
+      theme: 'grid',
+      headStyles: { fillColor: [41, 128, 185] },
+    });
+  }
 
   const finalY = (doc as any).lastAutoTable.finalY + 10;
 

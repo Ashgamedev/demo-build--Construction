@@ -392,64 +392,71 @@ export function QuotationBuilder() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <button onClick={() => navigate('/quotations')} className="text-gray-500 hover:text-gray-700">
-            <ArrowLeft className="w-6 h-6" />
-          </button>
-          <h1 className="text-2xl font-semibold text-gray-900">
-            {id ? 'Edit Quotation' : 'New Quotation'}
-          </h1>
-        </div>
-        <div className="flex space-x-3">
-          
-          <div className="flex bg-gray-100 rounded-md p-1 mr-2">
-            <button 
-              onClick={() => setLanguage('en')}
-              className={`px-3 py-1 text-sm font-medium rounded ${language === 'en' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
-            >
-              EN
-            </button>
-            <button 
-              onClick={() => setLanguage('ta')}
-              className={`px-3 py-1 text-sm font-medium rounded flex items-center ${language === 'ta' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
-            >
-              TA
-              {translationOutdated && <span className="ml-1 w-2 h-2 rounded-full bg-orange-500" title="Translation may be outdated" />}
-            </button>
-          </div>
-          <button 
-            onClick={handleTranslate}
-            disabled={isTranslating}
-            className="bg-purple-50 text-purple-700 border border-purple-200 px-3 py-2 rounded-md hover:bg-purple-100 flex items-center disabled:opacity-50"
-            title="Auto-translate to Tamil"
-          >
-            {isTranslating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Languages className="w-5 h-5" />}
-          </button>
+      {/* Title on its own row so the buttons below have room to wrap on a phone.
+          On a phone the row that follows collapses everything to icons + a wide
+          Save, which stays reachable without horizontal scrolling. */}
+      <div className="flex items-center gap-3">
+        <button onClick={() => navigate('/quotations')} className="text-gray-500 hover:text-gray-700 shrink-0">
+          <ArrowLeft className="w-6 h-6" />
+        </button>
+        <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 truncate">
+          {id ? 'Edit Quotation' : 'New Quotation'}
+        </h1>
+      </div>
 
-          {settings && (
-            <PDFDownloadLink
-              document={<QuotationPDF quotation={previewData} />}
-              fileName={`Quotation-${previewData.type}-${Date.now()}.pdf`}
-              className="bg-gray-100 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-200 flex items-center border border-gray-300"
-            >
-              {/* @ts-ignore */}
-              {({ loading }) => (
-                <>
-                  <Download className="w-5 h-5 mr-2" />
-                  {loading ? 'Preparing PDF...' : 'Download PDF'}
-                </>
-              )}
-            </PDFDownloadLink>
-          )}
-          <button 
-            onClick={handleSave}
-            disabled={saving}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center disabled:opacity-50"
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        <div className="flex bg-gray-100 rounded-md p-1">
+          <button
+            onClick={() => setLanguage('en')}
+            className={`px-3 py-1 text-sm font-medium rounded ${language === 'en' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
           >
-            <Save className="w-5 h-5 mr-2" /> {saving ? 'Saving...' : 'Save Draft'}
+            EN
+          </button>
+          <button
+            onClick={() => setLanguage('ta')}
+            className={`px-3 py-1 text-sm font-medium rounded flex items-center ${language === 'ta' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            TA
+            {translationOutdated && <span className="ml-1 w-2 h-2 rounded-full bg-orange-500" title="Translation may be outdated" />}
           </button>
         </div>
+
+        <button
+          onClick={handleTranslate}
+          disabled={isTranslating}
+          className="bg-purple-50 text-purple-700 border border-purple-200 px-3 py-2 rounded-md hover:bg-purple-100 flex items-center disabled:opacity-50"
+          title="Auto-translate to Tamil"
+        >
+          {isTranslating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Languages className="w-5 h-5" />}
+        </button>
+
+        {settings && (
+          <PDFDownloadLink
+            document={<QuotationPDF quotation={previewData} />}
+            fileName={`Quotation-${previewData.type}-${Date.now()}.pdf`}
+            className="bg-gray-100 text-gray-700 px-3 sm:px-4 py-2 rounded-md hover:bg-gray-200 flex items-center border border-gray-300 text-sm"
+          >
+            {/* @ts-ignore */}
+            {({ loading }) => (
+              <>
+                <Download className="w-5 h-5 sm:mr-2" />
+                <span className="hidden sm:inline">
+                  {loading ? 'Preparing PDF...' : 'Download PDF'}
+                </span>
+              </>
+            )}
+          </PDFDownloadLink>
+        )}
+
+        {/* Save is the primary action; it stretches to fill the row on a phone
+            so a rushed thumb always lands on it. */}
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="ml-auto bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center justify-center disabled:opacity-50 min-w-[8rem] sm:min-w-0"
+        >
+          <Save className="w-5 h-5 mr-2" /> {saving ? 'Saving...' : 'Save Draft'}
+        </button>
       </div>
 
       <div className="lg:hidden flex border-b border-gray-200 mb-4">
@@ -933,8 +940,14 @@ export function QuotationBuilder() {
           </div>
         </div>
 
-        {/* Right Side: Live PDF Preview */}
-        <div className={`lg:block h-[calc(100vh-120px)] lg:sticky lg:top-6 ${mobileView === 'preview' ? 'block' : 'hidden'}`}>
+        {/* Right Side: Live PDF Preview.
+            Only rendered on tablet+; on phones Chrome refuses to render PDFs
+            inside an iframe (a browser limitation, not a bug in the app), so
+            the panel was showing the browser's fallback - a raw UUID and an
+            "Open" button - instead of anything useful. Below lg we surface a
+            plain "Download PDF" prompt instead, and hide the mobile Preview
+            tab entirely so the toggle isn't there to be pressed. */}
+        <div className={`hidden lg:block h-[calc(100vh-120px)] lg:sticky lg:top-6`}>
           <div className="bg-gray-100 rounded-lg border border-gray-200 h-full overflow-hidden shadow-inner flex flex-col">
             <div className="p-3 bg-gray-800 text-white text-sm font-medium flex justify-between items-center">
               <span>Live A4 Preview</span>
@@ -951,6 +964,17 @@ export function QuotationBuilder() {
             )}
           </div>
         </div>
+
+        {mobileView === 'preview' && (
+          <div className="lg:hidden bg-gray-50 rounded-lg border border-dashed border-gray-300 p-6 text-center space-y-3">
+            <Download className="w-8 h-8 mx-auto text-gray-400" />
+            <p className="text-sm font-medium text-gray-900">Preview isn't shown on phones</p>
+            <p className="text-sm text-gray-600 max-w-xs mx-auto">
+              Chrome on Android won't display a PDF inside the page. Use <b>Download PDF</b> above
+              to see the finished quotation.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

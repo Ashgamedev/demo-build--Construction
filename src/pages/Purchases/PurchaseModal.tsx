@@ -4,12 +4,16 @@ import { useVendorStore } from '../../store/vendorStore';
 import { useProjectStore } from '../../store/projectStore';
 import { useWorkforceStore } from '../../store/workforceStore';
 import { createdStamp, currentActor } from '../../lib/audit';
-import { PurchaseLineItem } from '../../types';
+import { PurchaseLineItem, VendorBill } from '../../types';
 import { X, Loader2, Plus, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface Props {
   onClose: () => void;
+  /** When supplied, the modal edits this bill in place instead of creating one.
+   *  The payments section is disabled in edit mode - retroactively rewriting
+   *  what was already paid belongs in a separate audit action, not a form. */
+  editBill?: VendorBill;
 }
 
 const blankLine = (): PurchaseLineItem => ({
@@ -21,8 +25,9 @@ const blankLine = (): PurchaseLineItem => ({
   amount: 0,
 });
 
-export function PurchaseModal({ onClose }: Props) {
-  const { createBill } = useBillStore();
+export function PurchaseModal({ onClose, editBill }: Props) {
+  const isEditing = !!editBill;
+  const { createBill, updateBill } = useBillStore();
   const { vendors, subscribeVendors, findOrCreateByName } = useVendorStore();
   const { projects, subscribeProjects } = useProjectStore();
   const { workforce, subscribeWorkforce } = useWorkforceStore();
@@ -30,18 +35,23 @@ export function PurchaseModal({ onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [vendorId, setVendorId] = useState('');
-  const [newVendorName, setNewVendorName] = useState('');
-  const [projectId, setProjectId] = useState('');
-  const [purchasedById, setPurchasedById] = useState('');
-  const [description, setDescription] = useState('');
-  const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [dueDate, setDueDate] = useState('');
-  const [lineItems, setLineItems] = useState<PurchaseLineItem[]>([blankLine()]);
-  const [useLineItems, setUseLineItems] = useState(false);
-  const [lumpSum, setLumpSum] = useState('');
+  const seedLines = editBill?.lineItems && editBill.lineItems.length ? editBill.lineItems : [blankLine()];
+  const toDateInput = (ms?: number) => (ms ? format(new Date(ms), 'yyyy-MM-dd') : '');
 
-  // How this purchase is being settled.
+  const [vendorId, setVendorId] = useState(editBill?.vendorId || '');
+  const [newVendorName, setNewVendorName] = useState('');
+  const [projectId, setProjectId] = useState(editBill?.projectId || '');
+  const [purchasedById, setPurchasedById] = useState(editBill?.purchasedById || '');
+  const [description, setDescription] = useState(editBill?.description || '');
+  const [date, setDate] = useState(editBill ? toDateInput(editBill.date) : format(new Date(), 'yyyy-MM-dd'));
+  const [dueDate, setDueDate] = useState(toDateInput(editBill?.dueDate));
+  const [lineItems, setLineItems] = useState<PurchaseLineItem[]>(seedLines);
+  const [useLineItems, setUseLineItems] = useState(!!editBill?.lineItems?.length);
+  const [lumpSum, setLumpSum] = useState(editBill && !editBill.lineItems?.length ? String(editBill.amount) : '');
+
+  // Settlement is only meaningful when creating a new bill. In edit mode the
+  // history of what was actually paid is authoritative and lives in payments -
+  // rewriting it from a form would silently destroy the audit trail.
   const [settlement, setSettlement] = useState<'credit' | 'paid' | 'partial'>('credit');
   const [amountPaidNow, setAmountPaidNow] = useState('');
   const [paymentMode, setPaymentMode] = useState('Cash');
@@ -89,8 +99,16 @@ export function PurchaseModal({ onClose }: Props) {
 
     if (!vendorId && !newVendorName.trim()) return setError('Choose a shop or enter a new one.');
     if (total <= 0) return setError('Enter the purchase amount.');
-    if (settlement === 'partial' && (paidNow <= 0 || paidNow >= total)) {
+    if (!isEditing && settlement === 'partial' && (paidNow <= 0 || paidNow >= total)) {
       return setError('Amount paid now must be more than zero and less than the total.');
+    }
+    // If the total was reduced below what has already been paid, the balance
+    // would flip negative silently. Block it and explain.
+    if (isEditing && total < (editBill!.paidAmount || 0)) {
+      return setError(
+        `You have already recorded ₹${(editBill!.paidAmount).toLocaleString('en-IN')} paid on this bill. `
+        + `The new total cannot be lower than that. Refund the difference from the payments list first.`
+      );
     }
 
     setLoading(true);
@@ -102,34 +120,56 @@ export function PurchaseModal({ onClose }: Props) {
       const actor = currentActor();
       const purchaser = workforce.find((w) => w.id === purchasedById);
 
-      const status = pending === 0 ? 'Paid' : paidNow > 0 ? 'Partial' : 'Unpaid';
+      if (isEditing) {
+        const alreadyPaid = editBill!.paidAmount || 0;
+        const nextStatus: VendorBill['status'] =
+          alreadyPaid >= total ? 'Paid' : alreadyPaid > 0 ? 'Partial' : 'Unpaid';
 
-      await createBill({
-        vendorId: vendor.id,
-        vendorName: vendor.name,
-        description,
-        lineItems: useLineItems ? lineItems.filter((li) => li.description.trim()) : undefined,
-        amount: total,
-        date: new Date(date).getTime(),
-        dueDate: dueDate ? new Date(dueDate).getTime() : undefined,
-        status,
-        paidAmount: paidNow,
-        payments: paidNow
-          ? [{
-              id: crypto.randomUUID(),
-              amount: paidNow,
-              date: new Date(date).getTime(),
-              paymentMode,
-              referenceNumber: referenceNumber || undefined,
-              recordedBy: actor.id,
-              recordedByName: actor.name,
-            }]
-          : [],
-        projectId: projectId || undefined,
-        purchasedById: purchasedById || undefined,
-        purchasedByName: purchaser?.name || undefined,
-        ...createdStamp(),
-      } as any);
+        await updateBill(editBill!.id, {
+          vendorId: vendor.id,
+          vendorName: vendor.name,
+          description,
+          lineItems: useLineItems ? lineItems.filter((li) => li.description.trim()) : undefined,
+          amount: total,
+          date: new Date(date).getTime(),
+          dueDate: dueDate ? new Date(dueDate).getTime() : undefined,
+          status: nextStatus,
+          projectId: projectId || undefined,
+          purchasedById: purchasedById || undefined,
+          purchasedByName: purchaser?.name || undefined,
+          updatedBy: actor.id,
+          updatedByName: actor.name,
+        } as Partial<VendorBill>);
+      } else {
+        const status: VendorBill['status'] = pending === 0 ? 'Paid' : paidNow > 0 ? 'Partial' : 'Unpaid';
+
+        await createBill({
+          vendorId: vendor.id,
+          vendorName: vendor.name,
+          description,
+          lineItems: useLineItems ? lineItems.filter((li) => li.description.trim()) : undefined,
+          amount: total,
+          date: new Date(date).getTime(),
+          dueDate: dueDate ? new Date(dueDate).getTime() : undefined,
+          status,
+          paidAmount: paidNow,
+          payments: paidNow
+            ? [{
+                id: crypto.randomUUID(),
+                amount: paidNow,
+                date: new Date(date).getTime(),
+                paymentMode,
+                referenceNumber: referenceNumber || undefined,
+                recordedBy: actor.id,
+                recordedByName: actor.name,
+              }]
+            : [],
+          projectId: projectId || undefined,
+          purchasedById: purchasedById || undefined,
+          purchasedByName: purchaser?.name || undefined,
+          ...createdStamp(),
+        } as any);
+      }
 
       onClose();
     } catch (err: any) {
@@ -145,7 +185,9 @@ export function PurchaseModal({ onClose }: Props) {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg w-full max-w-2xl shadow-xl flex flex-col max-h-[90vh]">
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Add Purchase</h2>
+          <h2 className="text-lg font-semibold text-gray-900">
+            {isEditing ? 'Edit Purchase' : 'Add Purchase'}
+          </h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="w-5 h-5" />
           </button>
@@ -288,7 +330,18 @@ export function PurchaseModal({ onClose }: Props) {
             </div>
           </div>
 
-          {/* Settlement */}
+          {/* Settlement - shown only when creating. In edit mode the recorded
+              payment history is authoritative; use Log Payment on the bill row
+              to add a new payment, or open a payment to refund it. */}
+          {isEditing ? (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-600">
+              <p className="font-medium text-gray-800 mb-1">Payments cannot be changed here.</p>
+              <p>
+                Already paid on this bill: <b className="text-gray-900">₹{(editBill?.paidAmount || 0).toLocaleString('en-IN')}</b>.
+                To add another payment, close this and press <b>Log Payment</b> on the row.
+              </p>
+            </div>
+          ) : (
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
             <label className={label}>How is this being paid?</label>
             <div className="grid grid-cols-3 gap-2 mb-3">
@@ -354,6 +407,7 @@ export function PurchaseModal({ onClose }: Props) {
               </div>
             )}
           </div>
+          )}
 
           <div className="pt-4 flex justify-end gap-3 border-t border-gray-100">
             <button type="button" onClick={onClose} disabled={loading} className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
@@ -361,7 +415,7 @@ export function PurchaseModal({ onClose }: Props) {
             </button>
             <button type="submit" disabled={loading} className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center">
               {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Save Purchase
+              {isEditing ? 'Save Changes' : 'Save Purchase'}
             </button>
           </div>
         </form>
