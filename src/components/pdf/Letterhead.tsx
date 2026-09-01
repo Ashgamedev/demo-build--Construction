@@ -20,11 +20,6 @@ export function Letterhead({ settings }: LetterheadProps) {
   return (
     <View style={commonStyles.letterheadContainer}>
       <View style={commonStyles.letterheadRow}>
-        {/* Absolutely positioned - the identity block below takes the full row
-            width and centres itself on the page, and the logo just floats over
-            it on the left. Moving the logo closer to the text is a one-number
-            change in shared.ts (letterheadLogo.left) and does not disturb the
-            title or the address. */}
         <Image
           src={settings?.logoUrl || '/images/logo-mark-lg.png'}
           style={commonStyles.letterheadLogo}

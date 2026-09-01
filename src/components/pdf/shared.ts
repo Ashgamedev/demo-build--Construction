@@ -14,43 +14,39 @@ export const commonStyles = StyleSheet.create({
     borderBottomStyle: 'solid',
     paddingBottom: 8,
   },
-  /** The logo now floats absolutely inside this row (see letterheadLogo), so
-   *  its horizontal position no longer pushes the identity block around. The
-   *  row still gives the block a minimum height so the identity can vertically
-   *  centre against the taller logo without overlapping the divider below. */
+  /** Logo and identity are grouped as one unit and that unit is centred on the
+   *  page. The gap between them is a fixed marginRight on the logo, so it
+   *  reads as consistent and small - the same measured relationship you get
+   *  between the company name and the address underneath, which is the look
+   *  the client asked for. Left-aligning the title and address inside their
+   *  own block is what makes the composition sit as one thing rather than
+   *  three centred things drifting apart. */
   letterheadRow: {
-    position: 'relative',
-    minHeight: 62,
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 6,
   },
-  /** Absolutely positioned so the row's flex layout doesn't allocate width to
-   *  it - meaning the logo can be pulled right, next to the centred title,
-   *  without shifting the title or the address. `left` is the one number to
-   *  change if the gap looks wrong: bigger pulls the logo closer to the text,
-   *  smaller pushes it back toward the page edge. */
   letterheadLogo: {
-    position: 'absolute',
-    left: 90,
-    top: 0,
-    width: 62,
-    height: 62,
+    width: 52,
+    height: 52,
     objectFit: 'contain',
+    marginRight: 14,
   },
   letterheadIdentity: {
-    width: '100%',
+    // Natural width so the logo sits right next to the text. Do NOT set flex:1
+    // here - that turned this into two separate centred columns.
   },
   companyName: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#0369a1', // Match deep blue
-    textAlign: 'center',
+    color: '#0369a1',
     marginBottom: 3,
   },
   companyAddress: {
-    fontSize: 10,
+    fontSize: 9.5,
     color: '#4b5563',
-    textAlign: 'center',
+    lineHeight: 1.35,
   },
   proprietorRow: {
     flexDirection: 'row',
