@@ -8,24 +8,35 @@ export const commonStyles = StyleSheet.create({
     color: '#333',
   },
   letterheadContainer: {
-    marginBottom: 20,
+    marginBottom: 18,
     borderBottomWidth: 1,
     borderBottomColor: '#2563eb',
     borderBottomStyle: 'solid',
-    paddingBottom: 10,
+    paddingBottom: 8,
+  },
+  letterheadRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  letterheadLogo: {
+    width: 46,
+    height: 46,
+    objectFit: 'contain',
+    marginRight: 12,
+  },
+  letterheadIdentity: {
+    flex: 1,
   },
   companyName: {
-    fontSize: 24,
+    fontSize: 17,
     fontWeight: 'bold',
     color: '#0369a1', // Match deep blue
-    textAlign: 'center',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   companyAddress: {
-    fontSize: 10,
-    textAlign: 'center',
+    fontSize: 9.5,
     color: '#4b5563',
-    marginBottom: 8,
   },
   proprietorRow: {
     flexDirection: 'row',
