@@ -20,23 +20,32 @@ export const commonStyles = StyleSheet.create({
     marginBottom: 6,
   },
   letterheadLogo: {
-    width: 46,
-    height: 46,
+    width: 62,
+    height: 62,
     objectFit: 'contain',
-    marginRight: 12,
   },
   letterheadIdentity: {
     flex: 1,
+    paddingHorizontal: 8,
+  },
+  /** Same width as the logo so the identity block above centres on the page,
+   *  not on the whitespace left after the logo. Kept as a real (empty) View
+   *  because @react-pdf's flex layout gives it real width, unlike a margin. */
+  letterheadSpacer: {
+    width: 62,
+    height: 1,
   },
   companyName: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#0369a1', // Match deep blue
-    marginBottom: 2,
+    textAlign: 'center',
+    marginBottom: 3,
   },
   companyAddress: {
-    fontSize: 9.5,
+    fontSize: 10,
     color: '#4b5563',
+    textAlign: 'center',
   },
   proprietorRow: {
     flexDirection: 'row',

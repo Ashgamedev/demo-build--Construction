@@ -12,9 +12,12 @@ interface CompanySettingsState {
   updateSettings: (settings: CompanySettings) => Promise<void>;
 }
 
+// Used only as a fallback before the real settings/companyProfile document has
+// loaded from Firestore. The live values are edited from Settings and stored
+// there - this default is what a brand-new install sees.
 const DEFAULT_SETTINGS: CompanySettings = {
   name: 'Deepthi Construction',
-  address: 'No.14/13, Complex (Near EB Office), Thingal Nagar\nNeyyoor Post, Kanyakumari Dist - 629802',
+  address: 'No. 562-C6, M.S. Road, Vetturnimadam, Nagercoil\nVetturnimadam Post, Kanyakumari - 629 003',
   proprietor: 'S. Manikanda Prabhu',
   mobileNumbers: '9003676384, 9543676384'
 };

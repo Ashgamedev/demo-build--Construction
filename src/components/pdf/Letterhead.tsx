@@ -7,14 +7,14 @@ interface LetterheadProps {
 }
 
 /**
- * Letterhead: logo top-left, name and address to its right on one line each.
+ * Letterhead: logo on the left, company name and address centered on the page.
  *
- * The earlier layout stacked a 60pt-tall centred logo above the centred name,
- * which ate a third of page one before any content appeared. Left-aligned and
- * smaller matches how professional letterheads print in India - the eye lands
- * on the logo first, reads the name next to it, and the rest of the page is
- * for the actual document. The proprietor / mobile row stays full-width below
- * the divider so the sender's line stays balanced across the page.
+ * The logo sits at the left edge and the identity block (name + address) stays
+ * visually centered on the page - a spacer the same width as the logo is placed
+ * on the right so the text block's centre line is the page's centre line, not
+ * the centre of what's left after the logo. That is what the client asked for:
+ * logo moved off the top-centre onto the left, without shoving the name and
+ * address across to the right with it.
  */
 export function Letterhead({ settings }: LetterheadProps) {
   return (
@@ -30,6 +30,9 @@ export function Letterhead({ settings }: LetterheadProps) {
           </Text>
           <Text style={commonStyles.companyAddress}>{settings?.address || 'Address not set'}</Text>
         </View>
+        {/* Mirror-image spacer so the identity block centres on the page, not
+            on the space left over next to the logo. */}
+        <View style={commonStyles.letterheadSpacer} />
       </View>
 
       <View style={commonStyles.proprietorRow}>

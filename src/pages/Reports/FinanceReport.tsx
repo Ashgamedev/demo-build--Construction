@@ -78,11 +78,11 @@ export function FinanceReport() {
   };
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
+    <div className="p-4 sm:p-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mb-6">
         <h2 className="text-xl font-bold text-gray-800">Financial Summary</h2>
-        <div className="flex space-x-3">
-          <select 
+        <div className="flex flex-wrap gap-2 sm:gap-3">
+          <select
             value={dateRange}
             onChange={(e) => setDateRange(e.target.value)}
             className="border border-gray-300 rounded-md px-3 py-1.5 text-sm"
@@ -91,16 +91,16 @@ export function FinanceReport() {
             <option value="month">This Month</option>
             <option value="year">This Year</option>
           </select>
-          <button 
+          <button
             onClick={handleExportCSV}
-            className="flex items-center text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-md font-medium transition-colors"
+            className="flex items-center text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-md font-medium transition-colors whitespace-nowrap"
           >
             <Download className="w-4 h-4 mr-1.5" /> Export CSV
           </button>
-          <button 
+          <button
             onClick={handleSaveReport}
             disabled={isSaving}
-            className="flex items-center text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-md font-medium transition-colors disabled:opacity-50"
+            className="flex items-center text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-md font-medium transition-colors disabled:opacity-50 whitespace-nowrap"
           >
             <Save className="w-4 h-4 mr-1.5" /> {isSaving ? 'Saving...' : 'Save Report'}
           </button>
