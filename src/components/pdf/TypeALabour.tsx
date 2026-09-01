@@ -38,14 +38,37 @@ export function TypeALabourPDF({ quotation }: Props) {
           </View>
         </View>
         
-        {/* Scope of Work */}
+        {/* Scope of Work.
+            Numbers sit in their own fixed-width column, right-aligned inside
+            it, so a two-digit number (10., 11., ...) doesn't shove the text
+            further right than the single-digit rows above it. Every
+            description line starts at the same x, and long descriptions wrap
+            back to the same left edge - a proper hanging indent, not a
+            concatenated string. */}
         <View style={{ marginBottom: 20, paddingLeft: 20 }}>
           {quotation.labourScope?.map((item, idx) => {
             const desc = isTa && t.labourScope?.[item.id] ? t.labourScope[item.id] : item.description;
             return (
-              <Text key={item.id} style={{ marginBottom: 5, fontSize: 10, lineHeight: 1.4, fontFamily }}>
-                {idx + 1}. {desc}{item.measurement ? ` : ${item.measurement}` : ''}
-              </Text>
+              <View
+                key={item.id}
+                style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 5 }}
+              >
+                <Text
+                  style={{
+                    width: 22,
+                    marginRight: 6,
+                    textAlign: 'right',
+                    fontSize: 10,
+                    lineHeight: 1.4,
+                    fontFamily,
+                  }}
+                >
+                  {idx + 1}.
+                </Text>
+                <Text style={{ flex: 1, fontSize: 10, lineHeight: 1.4, fontFamily }}>
+                  {desc}{item.measurement ? ` : ${item.measurement}` : ''}
+                </Text>
+              </View>
             );
           })}
         </View>
