@@ -28,10 +28,10 @@ export const commonStyles = StyleSheet.create({
     marginBottom: 6,
   },
   letterheadLogo: {
-    width: 52,
-    height: 52,
+    width: 64,
+    height: 64,
     objectFit: 'contain',
-    marginRight: 14,
+    marginRight: 7,
   },
   letterheadIdentity: {
     // Natural width so the logo sits right next to the text. Do NOT set flex:1
