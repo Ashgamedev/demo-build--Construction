@@ -14,26 +14,31 @@ export const commonStyles = StyleSheet.create({
     borderBottomStyle: 'solid',
     paddingBottom: 8,
   },
+  /** The logo now floats absolutely inside this row (see letterheadLogo), so
+   *  its horizontal position no longer pushes the identity block around. The
+   *  row still gives the block a minimum height so the identity can vertically
+   *  centre against the taller logo without overlapping the divider below. */
   letterheadRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    position: 'relative',
+    minHeight: 62,
+    justifyContent: 'center',
     marginBottom: 6,
   },
+  /** Absolutely positioned so the row's flex layout doesn't allocate width to
+   *  it - meaning the logo can be pulled right, next to the centred title,
+   *  without shifting the title or the address. `left` is the one number to
+   *  change if the gap looks wrong: bigger pulls the logo closer to the text,
+   *  smaller pushes it back toward the page edge. */
   letterheadLogo: {
+    position: 'absolute',
+    left: 110,
+    top: 0,
     width: 62,
     height: 62,
     objectFit: 'contain',
   },
   letterheadIdentity: {
-    flex: 1,
-    paddingHorizontal: 8,
-  },
-  /** Same width as the logo so the identity block above centres on the page,
-   *  not on the whitespace left after the logo. Kept as a real (empty) View
-   *  because @react-pdf's flex layout gives it real width, unlike a margin. */
-  letterheadSpacer: {
-    width: 62,
-    height: 1,
+    width: '100%',
   },
   companyName: {
     fontSize: 18,
