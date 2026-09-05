@@ -65,11 +65,18 @@ export function TypeCMeasurementPDF({ quotation }: Props) {
                         <View style={[commonStyles.tableCol, { width: '15%' }]}><Text style={{ ...commonStyles.tableCell, fontFamily }}>Rs. {item.amount.toLocaleString()}</Text></View>
                       </View>
                       
-                      {/* Dimension Rows */}
-                      {item.dimensions.map((dim, dimIdx) => (
+                      {/* Dimension Rows. Custom columns are free-text reference
+                          values, surfaced inline after the tag so any number of
+                          them shows without breaking the fixed table widths. */}
+                      {item.dimensions.map((dim, dimIdx) => {
+                        const custSuffix = (quotation.measurementColumns || [])
+                          .filter(c => dim.customValues?.[c.id])
+                          .map(c => ` · ${c.name}: ${dim.customValues![c.id]}`)
+                          .join('');
+                        return (
                         <View key={dim.id} style={commonStyles.tableRow}>
                           <View style={[commonStyles.tableCol, { width: '8%' }]}><Text style={commonStyles.tableCell}></Text></View>
-                          <View style={[commonStyles.tableCol, { width: '27%' }]}><Text style={{ ...commonStyles.tableCell, fontSize: 8, fontFamily }}>{dim.description}</Text></View>
+                          <View style={[commonStyles.tableCol, { width: '27%' }]}><Text style={{ ...commonStyles.tableCell, fontSize: 8, fontFamily }}>{dim.description}{custSuffix}</Text></View>
                           <View style={[commonStyles.tableCol, { width: '10%' }]}><Text style={{ ...commonStyles.tableCell, fontSize: 8 }}>{dim.nos || 1}</Text></View>
                           <View style={[commonStyles.tableCol, { width: '10%' }]}><Text style={{ ...commonStyles.tableCell, fontSize: 8 }}>{dim.length}</Text></View>
                           <View style={[commonStyles.tableCol, { width: '10%' }]}><Text style={{ ...commonStyles.tableCell, fontSize: 8 }}>{dim.width}</Text></View>
@@ -77,7 +84,8 @@ export function TypeCMeasurementPDF({ quotation }: Props) {
                           <View style={[commonStyles.tableCol, { width: '10%' }]}><Text style={{ ...commonStyles.tableCell, fontSize: 8 }}>{dim.quantity.toFixed(2)}</Text></View>
                           <View style={[commonStyles.tableCol, { width: '15%' }]}><Text style={commonStyles.tableCell}></Text></View>
                         </View>
-                      ))}
+                        );
+                      })}
 
                       {/* Cost Row for this item */}
                       <View style={[commonStyles.tableRow, { backgroundColor: '#fcfcfc', borderBottomColor: '#ccc', borderBottomWidth: 1 }]}>

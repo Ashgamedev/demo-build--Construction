@@ -5,7 +5,8 @@ import { useCustomerStore } from '../../store/customerStore';
 import { useFinanceStore } from '../../store/financeStore';
 import { useWorkforceStore } from '../../store/workforceStore';
 import { useStageStore } from '../../store/stageStore';
-import { ArrowLeft, HardHat, Briefcase, Plus, X, IndianRupee, Lightbulb, Receipt } from 'lucide-react';
+import { useAuthStore } from '../../store/authStore';
+import { ArrowLeft, HardHat, Briefcase, Plus, X, IndianRupee, Lightbulb, Receipt, TrendingUp, History } from 'lucide-react';
 import { format } from 'date-fns';
 import { ProjectContractorsTab } from './ProjectContractorsTab';
 import { ProjectStagesTab } from './ProjectStagesTab';
@@ -25,8 +26,11 @@ export function ProjectDetails() {
   const { expenses, payments, subscribeFinance } = useFinanceStore();
   const { workforce, subscribeWorkforce } = useWorkforceStore();
   const { stages, subscribeStages } = useStageStore();
+  const { user } = useAuthStore();
+  const isOwner = user?.role === 'owner';
 
   const [selectedWorkforceId, setSelectedWorkforceId] = useState('');
+  const [showValueHistory, setShowValueHistory] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'schedule' | 'stages' | 'plans' | 'finances' | 'contractors'>('overview');
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [expenseModalTarget, setExpenseModalTarget] = useState<{ id: string; name: string } | null>(null);
@@ -171,6 +175,24 @@ export function ProjectDetails() {
                 <span className="text-gray-500">Contract Value</span>
                 <span className="font-medium text-gray-900">₹{(project.agreedValue || 0).toLocaleString('en-IN')}</span>
               </div>
+              {project.agreedValueHistory && project.agreedValueHistory.length > 1 && (
+                <div className="border-b pb-2">
+                  <button onClick={() => setShowValueHistory(v => !v)} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800">
+                    <History className="w-3.5 h-3.5" />
+                    Original ₹{(project.agreedValueHistory[0].amount).toLocaleString('en-IN')} → now ₹{(project.agreedValue || 0).toLocaleString('en-IN')} · {showValueHistory ? 'hide' : 'see changes'}
+                  </button>
+                  {showValueHistory && (
+                    <div className="mt-2 space-y-1.5 pl-1">
+                      {project.agreedValueHistory.map((rev, i) => (
+                        <div key={i} className="text-xs flex justify-between gap-3">
+                          <span className="text-gray-600">{format(rev.date, 'dd MMM yyyy')} — {rev.reason || (i === 0 ? 'Original' : 'Revised')}</span>
+                          <span className="font-medium text-gray-900 whitespace-nowrap">₹{rev.amount.toLocaleString('en-IN')}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="flex justify-between border-b pb-2">
                 <span className="text-gray-500">Total Collected</span>
                 <span className="font-medium text-green-600">+₹{totalCollected.toLocaleString('en-IN')}</span>
@@ -198,13 +220,38 @@ export function ProjectDetails() {
                 <span className="font-medium text-red-600">-₹{totalExpenses.toLocaleString('en-IN')}</span>
               </div>
               <div className="flex justify-between pt-1">
-                <span className="text-gray-900 font-bold">Net Profit</span>
+                <span className="text-gray-900 font-bold">Net (Collected − Spent)</span>
                 <span className={`font-bold ${totalCollected - totalExpenses >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   ₹{(totalCollected - totalExpenses).toLocaleString('en-IN')}
                 </span>
               </div>
             </div>
           </div>
+
+          {isOwner && (
+            <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
+              <div className="flex items-center space-x-3 mb-4">
+                <TrendingUp className="text-indigo-600 w-6 h-6" />
+                <h3 className="text-lg font-semibold">Profitability</h3>
+                <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Only you see this</span>
+              </div>
+              {(project.allocatedAmount || 0) > 0 ? (
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between border-b pb-2"><span className="text-gray-500">Agreed value (customer pays)</span><span className="font-medium text-gray-900">₹{(project.agreedValue || 0).toLocaleString('en-IN')}</span></div>
+                  <div className="flex justify-between border-b pb-2"><span className="text-gray-500">Allocated budget (to build)</span><span className="font-medium text-gray-900">₹{(project.allocatedAmount || 0).toLocaleString('en-IN')}</span></div>
+                  <div className="flex justify-between border-b pb-2"><span className="text-gray-700 font-medium">Planned profit</span><span className={`font-bold ${(project.agreedValue || 0) - (project.allocatedAmount || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>₹{((project.agreedValue || 0) - (project.allocatedAmount || 0)).toLocaleString('en-IN')}</span></div>
+                  <div className="flex justify-between border-b pb-2"><span className="text-gray-500">Spent so far</span><span className="font-medium text-red-600">-₹{totalExpenses.toLocaleString('en-IN')}</span></div>
+                  <div className="py-1">
+                    <div className="flex justify-between text-xs mb-1"><span className="text-gray-500">Budget used</span><span className="font-medium text-gray-700">{Math.round((totalExpenses / (project.allocatedAmount || 1)) * 100)}%</span></div>
+                    <div className="w-full bg-gray-100 rounded-full h-2"><div className={`h-2 rounded-full transition-all duration-500 ${totalExpenses > (project.allocatedAmount || 0) ? 'bg-red-500' : 'bg-indigo-500'}`} style={{ width: `${Math.min(100, (totalExpenses / (project.allocatedAmount || 1)) * 100)}%` }}></div></div>
+                  </div>
+                  <div className="flex justify-between pt-1"><span className="text-gray-900 font-bold">Budget remaining</span><span className={`font-bold ${(project.allocatedAmount || 0) - totalExpenses >= 0 ? 'text-green-600' : 'text-red-600'}`}>₹{((project.allocatedAmount || 0) - totalExpenses).toLocaleString('en-IN')}</span></div>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">Set an <b>Allocated amount</b> on this project (Edit Project) to track your budget and profit here.</p>
+              )}
+            </div>
+          )}
 
           {/* Assigned Workforce Card (General Staff) */}
           <div className="bg-white p-6 rounded-lg shadow border border-gray-200 md:col-span-2">

@@ -7,14 +7,11 @@ interface LetterheadProps {
 }
 
 /**
- * Letterhead: logo on the left, company name and address centered on the page.
- *
- * The logo sits at the left edge and the identity block (name + address) stays
- * visually centered on the page - a spacer the same width as the logo is placed
- * on the right so the text block's centre line is the page's centre line, not
- * the centre of what's left after the logo. That is what the client asked for:
- * logo moved off the top-centre onto the left, without shoving the name and
- * address across to the right with it.
+ * Letterhead: a small logo in the top-left corner, company name and address
+ * centred on the page. The logo is absolutely positioned so it sits in the
+ * corner without shifting the centred identity - the layout the client
+ * settled on after trying several. Sizes and position live in shared.ts
+ * (letterheadLogo / companyName / companyAddress).
  */
 export function Letterhead({ settings }: LetterheadProps) {
   return (

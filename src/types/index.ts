@@ -120,6 +120,9 @@ export interface CompanySettings {
   mobileNumbers: string;
   logoUrl?: string;
   signatureUrl?: string;
+  /** Names of measurement columns the owner has saved for reuse across
+   *  quotations - the "keep it aside and add when needed" library. */
+  savedMeasurementColumns?: string[];
 }
 
 // Type A: Labour Quotation
@@ -156,6 +159,17 @@ export interface MeasurementDimension {
   height: string;
   nos: number; // repeat count
   quantity: number; // calculated cft/sft
+  /** Values for any user-defined extra columns, keyed by MeasurementColumn.id.
+   *  Free text - these columns are for reference and do not feed the quantity
+   *  calculation. Absent on rows created before custom columns existed. */
+  customValues?: Record<string, string>;
+}
+
+/** A user-defined extra column on the measurement bill (e.g. "Depth", "Ref").
+ *  Defined per quotation; names can be saved to settings for reuse. */
+export interface MeasurementColumn {
+  id: string;
+  name: string;
 }
 
 export interface MeasurementItem {
@@ -213,6 +227,9 @@ export interface QuotationVersion {
   
   // Type C: Measurement Bill data
   measurementGroups?: MeasurementGroup[];
+  /** Extra user-defined columns shown on every dimension row of this
+   *  measurement quotation, after the fixed L/W/H/Nos columns. */
+  measurementColumns?: MeasurementColumn[];
   
   // Immutable snapshot of letterhead
   companySnapshot: CompanySettings;
@@ -386,6 +403,16 @@ export interface ProjectStage {
   updatedBy?: string;
 }
 
+export interface AgreedValueRevision {
+  amount: number;
+  /** Why it changed - e.g. "Added first-floor balcony slope". The first entry
+   *  records the original value. */
+  reason?: string;
+  date: number;
+  changedBy?: string;
+  changedByName?: string;
+}
+
 export interface Project {
   id: string;
   customerId: string;
@@ -399,6 +426,14 @@ export interface Project {
   expectedCompletion?: number;
   actualCompletion?: number;
   agreedValue: number;
+  /** What the customer pays. When scope grows this changes, and the previous
+   *  values are kept in agreedValueHistory so "what was first agreed vs now"
+   *  can always be answered. */
+  agreedValueHistory?: AgreedValueRevision[];
+  /** The budget the owner sets aside to actually build the project. Profit is
+   *  measured against this and against real spend. Owner-only figure - never
+   *  shown to supervisors. */
+  allocatedAmount?: number;
   status: ProjectStatus;
   progressPercentage: number;
   stages: ProjectStage[];

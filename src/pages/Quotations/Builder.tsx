@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useQuotationStore } from '../../store/quotationStore';
 import { useCustomerStore } from '../../store/customerStore';
 import { useCompanySettingsStore } from '../../store/companySettingsStore';
-import { QuotationType, QuotationVersion, LabourQuotationItem, LabourScopeItem, FullSpecItem, MeasurementGroup, MeasurementItem, MeasurementDimension } from '../../types';
+import { QuotationType, QuotationVersion, LabourQuotationItem, LabourScopeItem, FullSpecItem, MeasurementGroup, MeasurementItem, MeasurementDimension, MeasurementColumn } from '../../types';
 import { Save, ArrowLeft, Download, Languages, Loader2 } from 'lucide-react';
 import { translateTexts } from '../../utils/translateService';
 import { PDFViewer, PDFDownloadLink } from '@react-pdf/renderer';
@@ -53,7 +53,7 @@ export function QuotationBuilder() {
   const navigate = useNavigate();
   const { createQuotation, updateVersion, fetchVersions, subscribeQuotations } = useQuotationStore();
   const { customers, subscribe: subscribeCustomers } = useCustomerStore();
-  const { settings, fetchSettings } = useCompanySettingsStore();
+  const { settings, fetchSettings, updateSettings } = useCompanySettingsStore();
 
   const [type, setType] = useState<QuotationType>('labour');
   const [subject, setSubject] = useState('');
@@ -134,6 +134,9 @@ export function QuotationBuilder() {
     }
   ]);
 
+  // User-defined extra columns for the measurement bill (Type C).
+  const [measurementColumns, setMeasurementColumns] = useState<MeasurementColumn[]>([]);
+
   /** The version being edited. Needed to save back to the right document. */
   const [currentVersionId, setCurrentVersionId] = useState<string | null>(null);
   const [loadingExisting, setLoadingExisting] = useState(false);
@@ -179,6 +182,7 @@ export function QuotationBuilder() {
         if (v.fullSpecRate !== undefined) setFullSpecRate(v.fullSpecRate);
         if (v.fullSpecItems) setFullSpecItems(v.fullSpecItems);
         if (v.measurementGroups) setMeasurementGroups(v.measurementGroups);
+        if (v.measurementColumns) setMeasurementColumns(v.measurementColumns);
       }
       if (family?.customerId) setCustomerId(family.customerId);
 
@@ -282,6 +286,7 @@ export function QuotationBuilder() {
         payload.fullSpecItems = fullSpecItems;
       } else if (type === 'measurement') {
         payload.measurementGroups = measurementGroups;
+        payload.measurementColumns = measurementColumns;
       }
 
       if (id) {
@@ -325,11 +330,12 @@ export function QuotationBuilder() {
     labourScope,
     fullSpecRate,
     fullSpecItems,
-    measurementGroups
+    measurementGroups,
+    measurementColumns
   } as QuotationVersion), [
     type, subject, clientName, contractorName, siteName, notes, settings,
     language, tamilData, previewDate, labourItems, labourScope,
-    fullSpecRate, fullSpecItems, measurementGroups,
+    fullSpecRate, fullSpecItems, measurementGroups, measurementColumns,
   ]);
 
   /**
@@ -797,14 +803,76 @@ export function QuotationBuilder() {
             <div className="bg-white rounded-lg shadow p-6 border border-gray-200 space-y-6">
               <div className="border-b pb-2 flex justify-between items-center">
                 <h2 className="text-lg font-medium">Measurement Bill Details</h2>
-                <button 
+                <button
                   onClick={() => setMeasurementGroups([...measurementGroups, { id: generateId(), name: 'New Group', order: measurementGroups.length + 1, items: [] }])}
                   className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
                 >
                   + Add Group (Floor/Phase)
                 </button>
               </div>
-              
+
+              {/* Custom columns manager. Extra reference columns (e.g. "Depth",
+                  "Ref") appear on every dimension row after L/W/H/Nos. They are
+                  free text and don't feed the quantity calc. Names can be saved
+                  to reuse on the next quotation. */}
+              <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-700">Extra columns</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const name = window.prompt('Name of the new column (e.g. Depth, Ref no.)');
+                      if (!name || !name.trim()) return;
+                      const col = { id: generateId(), name: name.trim() };
+                      setMeasurementColumns(cols => [...cols, col]);
+                      // Remember it for reuse across quotations.
+                      const saved = settings?.savedMeasurementColumns || [];
+                      if (!saved.includes(col.name) && settings) {
+                        updateSettings({ ...settings, savedMeasurementColumns: [...saved, col.name] }).catch(() => {});
+                      }
+                    }}
+                    className="text-sm text-blue-600 hover:text-blue-800"
+                  >
+                    + Add column
+                  </button>
+                </div>
+
+                {measurementColumns.length > 0 ? (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {measurementColumns.map(col => (
+                      <span key={col.id} className="inline-flex items-center gap-1 bg-white border border-gray-300 rounded-full pl-3 pr-1 py-1 text-xs">
+                        {col.name}
+                        <button
+                          type="button"
+                          onClick={() => setMeasurementColumns(cols => cols.filter(c => c.id !== col.id))}
+                          className="text-gray-400 hover:text-red-600 rounded-full w-4 h-4 flex items-center justify-center"
+                          title="Remove this column from the quotation"
+                        >✕</button>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500 mb-2">No extra columns. The bill shows Desc/Tag, L, W, H/D, Nos, Qty.</p>
+                )}
+
+                {/* Quick re-add from the saved library. */}
+                {(settings?.savedMeasurementColumns || []).filter(n => !measurementColumns.some(c => c.name === n)).length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs text-gray-400">Saved:</span>
+                    {(settings?.savedMeasurementColumns || [])
+                      .filter(n => !measurementColumns.some(c => c.name === n))
+                      .map(name => (
+                        <button
+                          key={name}
+                          type="button"
+                          onClick={() => setMeasurementColumns(cols => [...cols, { id: generateId(), name }])}
+                          className="text-xs bg-white border border-blue-200 text-blue-700 rounded-full px-2 py-0.5 hover:bg-blue-100"
+                        >+ {name}</button>
+                      ))}
+                  </div>
+                )}
+              </div>
+
               <div className="space-y-6">
                 {measurementGroups.map((group) => (
                   <div key={group.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
@@ -837,11 +905,15 @@ export function QuotationBuilder() {
                     <div className="space-y-4">
                       {group.items.map(item => (
                         <div key={item.id} className="bg-white border border-gray-200 rounded p-4 space-y-3 shadow-sm">
-                          <div className="flex justify-between items-start">
-                            <input 
-                              type="text" 
+                          {/* Item name on its own row - it used to share a squeezed
+                              flex row with the Unit Rate field and the two collided
+                              on narrow screens. Now the name spans the full width and
+                              the rate sits on its own labelled line below. */}
+                          <div className="flex items-start gap-2">
+                            <input
+                              type="text"
                               value={isTa ? (t.measurementGroups?.[group.id]?.items?.[item.id] || '') : item.description}
-                              placeholder={isTa ? item.description : ''}
+                              placeholder={isTa ? item.description : 'Item name (e.g. Column Footing)'}
                               onChange={e => {
                                 if (isTa) {
                                    setTamilData(prev => ({ ...prev, measurementGroups: { ...prev.measurementGroups, [group.id]: { ...prev.measurementGroups?.[group.id], items: { ...prev.measurementGroups?.[group.id]?.items, [item.id]: e.target.value } } } }));
@@ -850,18 +922,22 @@ export function QuotationBuilder() {
                                    markOutdated();
                                 }
                               }}
-                              className="font-medium text-gray-800 border-b border-gray-300 focus:border-blue-500 focus:outline-none w-1/2 px-1" 
+                              className="flex-1 min-w-0 font-medium text-gray-800 border border-gray-300 rounded focus:border-blue-500 focus:outline-none px-2 py-1.5"
                             />
-                            <div className="flex items-center space-x-2">
-                              <label className="text-xs text-gray-500">Unit Rate (₹)</label>
-                              <input 
-                                type="number" 
-                                value={item.unitRate}
-                                onChange={e => updateMeasurementItem(group.id, item.id, i => ({ ...i, unitRate: Number(e.target.value) }))}
-                                className="w-24 border border-gray-300 rounded p-1 text-sm" 
-                              />
-                              <button onClick={() => updateMeasurementGroup(group.id, g => ({ ...g, items: g.items.filter(i => i.id !== item.id) }))} className="text-red-400 ml-2">✕</button>
-                            </div>
+                            <button
+                              onClick={() => updateMeasurementGroup(group.id, g => ({ ...g, items: g.items.filter(i => i.id !== item.id) }))}
+                              className="text-red-400 hover:text-red-600 shrink-0 p-1.5"
+                              title="Remove this item"
+                            >✕</button>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <label className="text-xs text-gray-500 shrink-0">Unit Rate (₹)</label>
+                            <input
+                              type="number"
+                              value={item.unitRate}
+                              onChange={e => updateMeasurementItem(group.id, item.id, i => ({ ...i, unitRate: Number(e.target.value) }))}
+                              className="w-28 border border-gray-300 rounded p-1.5 text-sm"
+                            />
                           </div>
                           
                           <div className="overflow-x-auto">
@@ -874,6 +950,9 @@ export function QuotationBuilder() {
                                   <th className="px-1 py-1">H/D</th>
                                   <th className="px-1 py-1">Nos</th>
                                   <th className="px-1 py-1">Qty (Unit)</th>
+                                  {measurementColumns.map(col => (
+                                    <th key={col.id} className="px-1 py-1 whitespace-nowrap">{col.name}</th>
+                                  ))}
                                   <th className="px-1 py-1"></th>
                                 </tr>
                               </thead>
@@ -898,6 +977,21 @@ export function QuotationBuilder() {
                                     <td className="px-1 py-1">
                                       <input type="number" value={dim.quantity} onChange={e => handleDimensionChange(group.id, item.id, dim.id, 'quantity', Number(e.target.value))} className="w-16 border border-gray-300 rounded p-1 text-xs font-medium bg-blue-50" title="Base Volume/Area" />
                                     </td>
+                                    {measurementColumns.map(col => (
+                                      <td key={col.id} className="px-1 py-1">
+                                        <input
+                                          type="text"
+                                          value={dim.customValues?.[col.id] || ''}
+                                          onChange={e => updateMeasurementItem(group.id, item.id, i => ({
+                                            ...i,
+                                            dimensions: i.dimensions.map(d => d.id === dim.id
+                                              ? { ...d, customValues: { ...(d.customValues || {}), [col.id]: e.target.value } }
+                                              : d),
+                                          }))}
+                                          className="w-16 border border-gray-300 rounded p-1 text-xs"
+                                        />
+                                      </td>
+                                    ))}
                                     <td className="px-1 py-1 text-red-500 cursor-pointer text-center" onClick={() => updateMeasurementItem(group.id, item.id, i => ({ ...i, dimensions: i.dimensions.filter(d => d.id !== dim.id) }))}>
                                       ✕
                                     </td>

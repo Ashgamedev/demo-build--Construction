@@ -14,38 +14,40 @@ export const commonStyles = StyleSheet.create({
     borderBottomStyle: 'solid',
     paddingBottom: 8,
   },
-  /** Logo and identity are grouped as one unit and that unit is centred on the
-   *  page. The gap between them is a fixed marginRight on the logo, so it
-   *  reads as consistent and small - the same measured relationship you get
-   *  between the company name and the address underneath, which is the look
-   *  the client asked for. Left-aligning the title and address inside their
-   *  own block is what makes the composition sit as one thing rather than
-   *  three centred things drifting apart. */
+  /** Small logo pinned to the top-left corner, company name and address centred
+   *  on the page. The row is the positioning context (relative); the logo is
+   *  absolutely placed in its top-left, and the identity spans the full width
+   *  with centred text so the logo never pushes it around. This is the layout
+   *  the client settled on: logo in the corner, identity centred like the
+   *  letterpad format. */
   letterheadRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    position: 'relative',
+    minHeight: 44,
     justifyContent: 'center',
     marginBottom: 6,
   },
   letterheadLogo: {
-    width: 64,
-    height: 64,
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    width: 42,
+    height: 42,
     objectFit: 'contain',
-    marginRight: 7,
   },
   letterheadIdentity: {
-    // Natural width so the logo sits right next to the text. Do NOT set flex:1
-    // here - that turned this into two separate centred columns.
+    width: '100%',
   },
   companyName: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#0369a1',
+    textAlign: 'center',
     marginBottom: 3,
   },
   companyAddress: {
     fontSize: 9.5,
     color: '#4b5563',
+    textAlign: 'center',
     lineHeight: 1.35,
   },
   proprietorRow: {

@@ -19,9 +19,15 @@ export function ProjectModal({ onClose, projectToEdit }: Props) {
     (projectToEdit?.type?.toLowerCase() as any) || 'residential'
   );
   const [agreedValue, setAgreedValue] = useState(projectToEdit?.agreedValue || 0);
+  const [allocatedAmount, setAllocatedAmount] = useState(projectToEdit?.allocatedAmount || 0);
+  const [revisionReason, setRevisionReason] = useState('');
   const [customerId, setCustomerId] = useState(projectToEdit?.customerId || '');
   const [status, setStatus] = useState<Project['status']>(projectToEdit?.status || 'Planning');
   const [progressPercentage, setProgressPercentage] = useState(projectToEdit?.progressPercentage || 0);
+
+  // True only while editing and after the agreed value has actually been
+  // changed from what was saved - that's when we need a reason for the change.
+  const agreedValueChanged = !!projectToEdit && agreedValue !== projectToEdit.agreedValue;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,6 +36,32 @@ export function ProjectModal({ onClose, projectToEdit }: Props) {
 
     try {
       if (projectToEdit) {
+        // If the agreed value changed, record the revision. The first revision
+        // also captures the original value, so the history always starts from
+        // what was first agreed even for projects created before this feature.
+        let agreedValueHistory = projectToEdit.agreedValueHistory;
+        if (agreedValueChanged) {
+          const actor = currentActor();
+          const existing = projectToEdit.agreedValueHistory || [];
+          const seeded = existing.length === 0
+            ? [{
+                amount: projectToEdit.agreedValue || 0,
+                reason: 'Original agreed value',
+                date: projectToEdit.createdAt || Date.now(),
+              }]
+            : existing;
+          agreedValueHistory = [
+            ...seeded,
+            {
+              amount: agreedValue,
+              reason: revisionReason.trim() || 'Revised',
+              date: Date.now(),
+              changedBy: actor.id,
+              changedByName: actor.name,
+            },
+          ];
+        }
+
         await updateProject(projectToEdit.id, {
           title,
           siteAddress,
@@ -37,6 +69,8 @@ export function ProjectModal({ onClose, projectToEdit }: Props) {
           status,
           progressPercentage,
           agreedValue,
+          allocatedAmount,
+          ...(agreedValueHistory ? { agreedValueHistory } : {}),
           customerId,
         });
       } else {
@@ -47,6 +81,7 @@ export function ProjectModal({ onClose, projectToEdit }: Props) {
           status: 'Planning',
           progressPercentage: 0,
           agreedValue,
+          allocatedAmount,
           customerId,
           startDate: Date.now(),
           stages: [],
@@ -124,13 +159,49 @@ export function ProjectModal({ onClose, projectToEdit }: Props) {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Agreed Value (₹)</label>
-              <input 
-                type="number" 
-                value={agreedValue} 
-                onChange={e => setAgreedValue(Number(e.target.value))} 
-                className="mt-1 block w-full border border-gray-300 rounded p-2" 
+              <input
+                type="number"
+                value={agreedValue}
+                onChange={e => setAgreedValue(Number(e.target.value))}
+                className="mt-1 block w-full border border-gray-300 rounded p-2"
+              />
+              <p className="text-xs text-gray-500 mt-1">What the customer pays you.</p>
+            </div>
+          </div>
+
+          {/* When the agreed value is changed on an existing project, ask why.
+              The old value is kept in the project's history automatically. */}
+          {agreedValueChanged && (
+            <div className="bg-amber-50 border border-amber-200 rounded-md p-3">
+              <label className="block text-sm font-medium text-amber-800">
+                Why is the agreed value changing?
+              </label>
+              <p className="text-xs text-amber-700 mb-2">
+                Was ₹{(projectToEdit?.agreedValue || 0).toLocaleString('en-IN')}, now ₹{agreedValue.toLocaleString('en-IN')}.
+                The old value is kept on record so you can always show the customer the original and the revised amount.
+              </p>
+              <input
+                type="text"
+                value={revisionReason}
+                onChange={e => setRevisionReason(e.target.value)}
+                placeholder="e.g. Added first-floor balcony slope work"
+                className="block w-full border border-amber-300 rounded p-2 text-sm"
               />
             </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Allocated Amount (₹)</label>
+            <input
+              type="number"
+              value={allocatedAmount}
+              onChange={e => setAllocatedAmount(Number(e.target.value))}
+              className="mt-1 block w-full border border-gray-300 rounded p-2"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              The budget you set aside to actually build this project. Your profit is measured against
+              it. Only you see this - it never appears on the customer's paperwork.
+            </p>
           </div>
 
           {projectToEdit && (
@@ -153,13 +224,17 @@ export function ProjectModal({ onClose, projectToEdit }: Props) {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Progress (%)</label>
-                <input 
-                  type="number" 
+                <input
+                  type="number"
                   min="0" max="100"
-                  value={progressPercentage} 
-                  onChange={e => setProgressPercentage(Number(e.target.value))} 
-                  className="mt-1 block w-full border border-gray-300 rounded p-2" 
+                  value={progressPercentage}
+                  onChange={e => setProgressPercentage(Number(e.target.value))}
+                  className="mt-1 block w-full border border-gray-300 rounded p-2"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Once you add stages to this project, progress is calculated from them
+                  automatically and this number is kept in step.
+                </p>
               </div>
             </div>
           )}

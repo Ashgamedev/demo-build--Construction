@@ -5,6 +5,8 @@ import {
   collection, doc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp } from 'firebase/firestore';
 import { setDocSafe as setDoc, updateDocSafe as updateDoc } from '../lib/firestoreSafe';
 import { ProjectStage, ProjectTask } from '../types';
+import { computeProjectProgress } from '../lib/progress';
+import { useProjectStore } from './projectStore';
 
 interface StageState {
   stages: Record<string, ProjectStage[]>; // Map of projectId to stages
@@ -42,11 +44,30 @@ export const useStageStore = create<StageState>((set, get) => ({
           ...doc.data()
         })) as ProjectStage[];
         
-        set((state) => ({ 
+        set((state) => ({
           stages: { ...state.stages, [projectId]: projectStages },
-          loading: false, 
-          error: null 
+          loading: false,
+          error: null
         }));
+
+        // Progress is now driven by the stages. Recompute it and, if it has
+        // moved, persist it onto the project so every screen that already reads
+        // project.progressPercentage (dashboard, list, reports) stays correct
+        // without each having to know about stages. Writing the project doc
+        // does not re-trigger this stage subscription, so there's no loop.
+        // Only runs when the project is loaded in the project store and only
+        // writes on an actual change.
+        const auto = computeProjectProgress(projectStages);
+        if (auto !== null) {
+          const projStore = useProjectStore.getState();
+          const proj = projStore.projects.find(p => p.id === projectId);
+          if (proj && proj.progressPercentage !== auto) {
+            projStore.updateProject(projectId, { progressPercentage: auto }).catch(() => {
+              /* non-fatal: a permissions or offline error here just means the
+                 stored number lags; the live screens still compute from stages */
+            });
+          }
+        }
       },
       (error) => {
         console.error('Error fetching stages:', error);
