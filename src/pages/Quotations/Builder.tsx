@@ -36,16 +36,77 @@ Validity: This quotation is valid for 30 days.`;
 const TYPE_C_NOTES = `Payment Terms: Due within 7 days of bill submission.
 Validity: Rates are valid for the duration of the current phase.`;
 
+/**
+ * Turns a length written the way a builder writes it into decimal feet, so the
+ * area/volume can be multiplied out automatically. Handles:
+ *   6            -> 6        (plain feet)
+ *   6.5   6.5'   -> 6.5      (decimal feet)
+ *   6'-6"  6'6"  6' 6"  6-6  -> 6.5   (feet and inches, any separator)
+ *   6ft 6in                  -> 6.5
+ * Blank returns 1 so an unused dimension doesn't zero the product (an area is
+ * L x W with the height left blank). An explicit 0 returns 0.
+ */
 function parseDimension(val: string): number {
-  if (!val) return 1;
-  const match = val.match(/^(\d+)(?:'|-|\s)*(\d+)?(?:"|'')?$/);
-  if (match) {
-    const feet = parseInt(match[1]) || 0;
-    const inches = parseInt(match[2]) || 0;
-    return feet + (inches / 12);
+  if (val === null || val === undefined) return 1;
+  const s = String(val).trim();
+  if (!s) return 1;
+  // Plain decimal / integer, optionally with a foot mark: 6, 6.5, 6.5'
+  const dec = s.match(/^(\d+(?:\.\d+)?)\s*'?$/);
+  if (dec) return parseFloat(dec[1]);
+  // Feet and inches with any common separator(s) and optional unit words. The
+  // separator group is one-or-more so "6'-6\"" (apostrophe AND dash) parses,
+  // as well as "6'6\"", "6' 6\"", "6-6" and "6ft 6in".
+  const fi = s.match(/^(\d+(?:\.\d+)?)\s*(?:'|ft|feet|-|\s)+\s*(\d+(?:\.\d+)?)?\s*(?:"|''|in|inch|inches)?\s*$/i);
+  if (fi) {
+    const feet = parseFloat(fi[1]) || 0;
+    const inches = fi[2] ? parseFloat(fi[2]) : 0;
+    return feet + inches / 12;
   }
-  const parsed = Number(val);
+  const parsed = Number(s);
   return isNaN(parsed) ? 1 : parsed;
+}
+
+/** The live area/volume for one dimension row, plus the working ("6.50 × 6.08")
+ *  to show the user. Returns null when no L/W/H is entered, so the caller can
+ *  fall back to a manually typed quantity. */
+function autoQuantity(dim: { length?: string; width?: string; height?: string }):
+  { value: number; working: string } | null {
+  if (!dim.length && !dim.width && !dim.height) return null;
+  const l = dim.length ? parseDimension(dim.length) : 1;
+  const w = dim.width ? parseDimension(dim.width) : 1;
+  const h = dim.height ? parseDimension(dim.height) : 1;
+  const parts: string[] = [];
+  if (dim.length) parts.push(l.toFixed(2));
+  if (dim.width) parts.push(w.toFixed(2));
+  if (dim.height) parts.push(h.toFixed(2));
+  return { value: Number((l * w * h).toFixed(2)), working: parts.join(' × ') };
+}
+
+/**
+ * Re-derives every row's quantity from its L/W/H and recomputes the item totals,
+ * so a loaded quotation's totals always match what the dimensions multiply out
+ * to. Rows with no L/W/H keep their typed quantity. Applied when an existing
+ * measurement quotation is opened, since older/hand-entered data may have a
+ * stored quantity that no longer matches the dimensions.
+ */
+function normalizeMeasurementGroups(groups: MeasurementGroup[]): MeasurementGroup[] {
+  return groups.map(g => ({
+    ...g,
+    items: g.items.map(item => {
+      const dimensions = item.dimensions.map(d => {
+        const auto = autoQuantity(d);
+        return auto ? { ...d, quantity: auto.value } : d;
+      });
+      const totalQuantity = dimensions.reduce((sum, d) => sum + ((Number(d.quantity) || 0) * (Number(d.nos) || 1)), 0);
+      const amount = totalQuantity * (item.unitRate || 0);
+      return {
+        ...item,
+        dimensions,
+        totalQuantity: parseFloat(totalQuantity.toFixed(2)),
+        amount: parseFloat(amount.toFixed(2)),
+      };
+    }),
+  }));
 }
 
 export function QuotationBuilder() {
@@ -111,8 +172,9 @@ export function QuotationBuilder() {
     { id: generateId(), name: 'FLOORING TILES', description: 'Hi Gloss full body vitrified Tiles shall be used for all carpet areas.', brandOptions: 'Choice of design & brand as per the client', maxRateCap: 30, order: 2 }
   ]);
 
-  // Measurement (Type C)
-  const [measurementGroups, setMeasurementGroups] = useState<MeasurementGroup[]>([
+  // Measurement (Type C). Normalised so the starter's quantities and totals are
+  // the true L x W x H figures, not hand-typed approximations.
+  const [measurementGroups, setMeasurementGroups] = useState<MeasurementGroup[]>(() => normalizeMeasurementGroups([
     {
       id: generateId(),
       name: 'Ground Floor',
@@ -123,16 +185,16 @@ export function QuotationBuilder() {
           description: 'Column Footing first step',
           order: 1,
           unitRate: 135,
-          totalQuantity: 234.3, // (58.5 * 2) + (117.3 * 1)
-          amount: 31630.5,
+          totalQuantity: 0,
+          amount: 0,
           dimensions: [
-            { id: generateId(), description: 'F2', length: "6'-6\"", width: "6'-1\"", height: "1'-6\"", nos: 2, quantity: 58.5 },
-            { id: generateId(), description: 'F5', length: "9'-8\"", width: "6'-1\"", height: "1'-3\"", nos: 1, quantity: 117.3 }
+            { id: generateId(), description: 'F2', length: "6'-6\"", width: "6'-1\"", height: "1'-6\"", nos: 2, quantity: 0 },
+            { id: generateId(), description: 'F5', length: "9'-8\"", width: "6'-1\"", height: "1'-3\"", nos: 1, quantity: 0 }
           ]
         }
       ]
     }
-  ]);
+  ]));
 
   // User-defined extra columns for the measurement bill (Type C).
   const [measurementColumns, setMeasurementColumns] = useState<MeasurementColumn[]>([]);
@@ -193,7 +255,7 @@ export function QuotationBuilder() {
         if (v.labourScope) setLabourScope(v.labourScope);
         if (v.fullSpecRate !== undefined) setFullSpecRate(v.fullSpecRate);
         if (v.fullSpecItems) setFullSpecItems(v.fullSpecItems);
-        if (v.measurementGroups) setMeasurementGroups(v.measurementGroups);
+        if (v.measurementGroups) setMeasurementGroups(normalizeMeasurementGroups(v.measurementGroups));
         if (v.measurementColumns) setMeasurementColumns(v.measurementColumns);
         if (v.freeformTitle !== undefined) setFreeformTitle(v.freeformTitle);
         if (v.freeformColumns) setFreeformColumns(v.freeformColumns);
@@ -980,7 +1042,7 @@ export function QuotationBuilder() {
                                   <th className="px-1 py-1">W</th>
                                   <th className="px-1 py-1">H/D</th>
                                   <th className="px-1 py-1">Nos</th>
-                                  <th className="px-1 py-1">Qty (Unit)</th>
+                                  <th className="px-1 py-1">Qty (auto)</th>
                                   {measurementColumns.map(col => (
                                     <th key={col.id} className="px-1 py-1 whitespace-nowrap">{col.name}</th>
                                   ))}
@@ -1006,7 +1068,33 @@ export function QuotationBuilder() {
                                       <input type="number" value={dim.nos} onChange={e => handleDimensionChange(group.id, item.id, dim.id, 'nos', Number(e.target.value))} className="w-12 border border-gray-300 rounded p-1 text-xs font-medium" />
                                     </td>
                                     <td className="px-1 py-1">
-                                      <input type="number" value={dim.quantity} onChange={e => handleDimensionChange(group.id, item.id, dim.id, 'quantity', Number(e.target.value))} className="w-16 border border-gray-300 rounded p-1 text-xs font-medium bg-blue-50" title="Base Volume/Area" />
+                                      {(() => {
+                                        const auto = autoQuantity(dim);
+                                        // When L/W/H are entered the quantity is the
+                                        // multiplied area/volume, shown read-only with the
+                                        // working on hover so he can see and trust it. Only
+                                        // when no dimensions are given does it fall back to a
+                                        // box he can type into directly.
+                                        if (auto) {
+                                          return (
+                                            <div
+                                              className="w-16 px-1 py-1 text-xs font-semibold text-green-700 bg-green-50 border border-green-200 rounded text-right"
+                                              title={`${auto.working} = ${auto.value}`}
+                                            >
+                                              {auto.value}
+                                            </div>
+                                          );
+                                        }
+                                        return (
+                                          <input
+                                            type="number"
+                                            value={dim.quantity}
+                                            onChange={e => handleDimensionChange(group.id, item.id, dim.id, 'quantity', Number(e.target.value))}
+                                            className="w-16 border border-gray-300 rounded p-1 text-xs font-medium bg-blue-50"
+                                            title="Type the area/volume directly, or fill L/W/H above to calculate it"
+                                          />
+                                        );
+                                      })()}
                                     </td>
                                     {measurementColumns.map(col => (
                                       <td key={col.id} className="px-1 py-1">
