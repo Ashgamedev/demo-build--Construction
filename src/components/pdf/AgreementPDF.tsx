@@ -23,6 +23,18 @@ export function AgreementPDF({ agreement }: Props) {
   // applied to page one - subsequent pages spill onto plain paper.
   const stampTopReserve = 320;
 
+  const isFreeform = agreement.format === 'freeform';
+  const columns = agreement.freeformColumns || [];
+  const rows = agreement.freeformRows || [];
+  const schedule = agreement.paymentSchedule || [];
+  const schedulePct = schedule.reduce((s, r) => s + (Number(r.percentage) || 0), 0);
+  const scheduleTotal = schedule.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+  const ffColWidth = (idx: number) => {
+    if (columns.length <= 1) return '100%';
+    const firstShare = 46;
+    return idx === 0 ? `${firstShare}%` : `${(100 - firstShare) / (columns.length - 1)}%`;
+  };
+
   return (
     <Document>
       <Page size="A4" style={{ ...commonStyles.page, fontFamily }}>
@@ -33,7 +45,7 @@ export function AgreementPDF({ agreement }: Props) {
         )}
 
         <Text style={{ ...commonStyles.title, fontFamily }}>CONSTRUCTION AGREEMENT</Text>
-        
+
         <View style={{ marginBottom: 15, flexDirection: 'row', justifyContent: 'space-between' }}>
           <View>
             <Text style={{ fontSize: 10, fontFamily }}>Agreement No: {agreement.agreementNumber}</Text>
@@ -44,50 +56,100 @@ export function AgreementPDF({ agreement }: Props) {
             <Text style={{ fontSize: 10, fontFamily }}>Site: {agreement.siteName}</Text>
           </View>
         </View>
-        
-        <View style={{ marginBottom: 15 }}>
-          <Text style={{ fontSize: 10, fontWeight: 'bold', fontFamily }}>Subject: {subject}</Text>
-        </View>
 
-        <View style={{ marginBottom: 20 }}>
-          <Text style={{ fontSize: 11, fontWeight: 'bold', marginBottom: 5, fontFamily, textDecoration: 'underline' }}>Scope of Work</Text>
-          <Text style={{ fontSize: 10, lineHeight: 1.5, fontFamily }}>{scope}</Text>
-        </View>
-
-        <View style={{ marginBottom: 20 }}>
-          <Text style={{ fontSize: 11, fontWeight: 'bold', marginBottom: 5, fontFamily, textDecoration: 'underline' }}>Commercials</Text>
-          <Text style={{ fontSize: 10, fontFamily }}>Total Agreed Value: Rs. {agreement.totalValue.toLocaleString()}/-</Text>
-        </View>
-
-        <View style={{ marginBottom: 20 }}>
-          <Text style={{ fontSize: 11, fontWeight: 'bold', marginBottom: 5, fontFamily, textDecoration: 'underline' }}>Payment Schedule</Text>
-          
-          <View style={commonStyles.table}>
-            <View style={[commonStyles.tableRow, commonStyles.tableHeader]}>
-              <View style={[commonStyles.tableCol, { width: '15%' }]}><Text style={commonStyles.tableCell}>Sl No.</Text></View>
-              <View style={[commonStyles.tableCol, { width: '50%' }]}><Text style={commonStyles.tableCell}>Milestone / Description</Text></View>
-              <View style={[commonStyles.tableCol, { width: '15%' }]}><Text style={commonStyles.tableCell}>%</Text></View>
-              <View style={[commonStyles.tableCol, { width: '20%' }]}><Text style={commonStyles.tableCell}>Amount (Rs)</Text></View>
-            </View>
-            
-            {agreement.paymentSchedule.map((milestone, idx) => {
-              const mDesc = isTa && t.paymentSchedule?.[milestone.id] ? t.paymentSchedule[milestone.id] : milestone.description;
-              return (
-                <View key={milestone.id} style={commonStyles.tableRow}>
-                  <View style={[commonStyles.tableCol, { width: '15%' }]}><Text style={commonStyles.tableCell}>{idx + 1}</Text></View>
-                  <View style={[commonStyles.tableCol, { width: '50%' }]}><Text style={{ ...commonStyles.tableCell, fontFamily }}>{mDesc}</Text></View>
-                  <View style={[commonStyles.tableCol, { width: '15%' }]}><Text style={commonStyles.tableCell}>{milestone.percentage}%</Text></View>
-                  <View style={[commonStyles.tableCol, { width: '20%' }]}><Text style={commonStyles.tableCell}>{milestone.amount.toLocaleString()}</Text></View>
-                </View>
-              );
-            })}
+        {agreement.subject ? (
+          <View style={{ marginBottom: 15 }}>
+            <Text style={{ fontSize: 10, fontWeight: 'bold', fontFamily }}>Subject: {subject}</Text>
           </View>
-        </View>
+        ) : null}
 
-        <View style={{ marginBottom: 30 }}>
-          <Text style={{ fontSize: 11, fontWeight: 'bold', marginBottom: 5, fontFamily, textDecoration: 'underline' }}>Terms & Conditions</Text>
-          <Text style={{ fontSize: 10, lineHeight: 1.5, fontFamily }}>{terms}</Text>
-        </View>
+        {isFreeform ? (
+          <>
+            {agreement.freeformTitle ? (
+              <Text style={{ fontSize: 11, fontWeight: 'bold', marginBottom: 6, fontFamily, textDecoration: 'underline', textAlign: 'center' }}>
+                {agreement.freeformTitle}
+              </Text>
+            ) : null}
+
+            {columns.length > 0 && (
+              <View style={[commonStyles.table, { marginBottom: 12 }]}>
+                <View style={[commonStyles.tableRow, commonStyles.tableHeader]}>
+                  {columns.map((c, idx) => (
+                    <View key={c.id} style={[commonStyles.tableCol, { width: ffColWidth(idx) }]}>
+                      <Text style={{ ...commonStyles.tableCell, textAlign: c.align || (idx === 0 ? 'left' : 'right') }}>{c.name}</Text>
+                    </View>
+                  ))}
+                </View>
+                {rows.map(row => (
+                  <View key={row.id} style={commonStyles.tableRow}>
+                    {columns.map((c, idx) => (
+                      <View key={c.id} style={[commonStyles.tableCol, { width: ffColWidth(idx) }]}>
+                        <Text style={{ ...commonStyles.tableCell, fontFamily, textAlign: c.align || (idx === 0 ? 'left' : 'right') }}>{row.cells?.[c.id] || ''}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {agreement.freeformSummary ? (
+              <Text style={{ fontSize: 10, fontWeight: 'bold', marginBottom: 12, fontFamily }}>{agreement.freeformSummary}</Text>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <View style={{ marginBottom: 20 }}>
+              <Text style={{ fontSize: 11, fontWeight: 'bold', marginBottom: 5, fontFamily, textDecoration: 'underline' }}>Scope of Work</Text>
+              <Text style={{ fontSize: 10, lineHeight: 1.5, fontFamily }}>{scope}</Text>
+            </View>
+
+            <View style={{ marginBottom: 20 }}>
+              <Text style={{ fontSize: 11, fontWeight: 'bold', marginBottom: 5, fontFamily, textDecoration: 'underline' }}>Commercials</Text>
+              <Text style={{ fontSize: 10, fontFamily }}>Total Agreed Value: Rs. {agreement.totalValue.toLocaleString()}/-</Text>
+            </View>
+          </>
+        )}
+
+        {schedule.length > 0 && (
+          <View style={{ marginBottom: 20 }}>
+            <Text style={{ fontSize: 11, fontWeight: 'bold', marginBottom: 5, fontFamily, textDecoration: 'underline' }}>Payment Schedule</Text>
+
+            <View style={commonStyles.table}>
+              <View style={[commonStyles.tableRow, commonStyles.tableHeader]}>
+                <View style={[commonStyles.tableCol, { width: '15%' }]}><Text style={commonStyles.tableCell}>Sl No.</Text></View>
+                <View style={[commonStyles.tableCol, { width: '50%' }]}><Text style={commonStyles.tableCell}>Milestone / Description</Text></View>
+                <View style={[commonStyles.tableCol, { width: '15%' }]}><Text style={commonStyles.tableCell}>%</Text></View>
+                <View style={[commonStyles.tableCol, { width: '20%' }]}><Text style={commonStyles.tableCell}>Amount (Rs)</Text></View>
+              </View>
+
+              {schedule.map((milestone, idx) => {
+                const mDesc = isTa && t.paymentSchedule?.[milestone.id] ? t.paymentSchedule[milestone.id] : milestone.description;
+                return (
+                  <View key={milestone.id} style={commonStyles.tableRow}>
+                    <View style={[commonStyles.tableCol, { width: '15%' }]}><Text style={commonStyles.tableCell}>{idx + 1}</Text></View>
+                    <View style={[commonStyles.tableCol, { width: '50%' }]}><Text style={{ ...commonStyles.tableCell, fontFamily }}>{mDesc}</Text></View>
+                    <View style={[commonStyles.tableCol, { width: '15%' }]}><Text style={commonStyles.tableCell}>{milestone.percentage}%</Text></View>
+                    <View style={[commonStyles.tableCol, { width: '20%' }]}><Text style={commonStyles.tableCell}>{milestone.amount.toLocaleString()}</Text></View>
+                  </View>
+                );
+              })}
+              {isFreeform && (
+                <View style={[commonStyles.tableRow, { backgroundColor: '#f0f0f0' }]}>
+                  <View style={[commonStyles.tableCol, { width: '65%' }]}><Text style={{ ...commonStyles.tableCell, fontWeight: 'bold', textAlign: 'right' }}>Total</Text></View>
+                  <View style={[commonStyles.tableCol, { width: '15%' }]}><Text style={{ ...commonStyles.tableCell, fontWeight: 'bold' }}>{schedulePct}%</Text></View>
+                  <View style={[commonStyles.tableCol, { width: '20%' }]}><Text style={{ ...commonStyles.tableCell, fontWeight: 'bold' }}>{scheduleTotal.toLocaleString()}</Text></View>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+
+        {terms ? (
+          <View style={{ marginBottom: 30 }}>
+            <Text style={{ fontSize: 11, fontWeight: 'bold', marginBottom: 5, fontFamily, textDecoration: 'underline' }}>Terms & Conditions</Text>
+            <Text style={{ fontSize: 10, lineHeight: 1.5, fontFamily }}>{terms}</Text>
+          </View>
+        ) : null}
 
         <View style={{ marginTop: 'auto', paddingTop: 20, flexDirection: 'row', justifyContent: 'space-between' }}>
           <View style={{ alignItems: 'center', justifyContent: 'flex-end' }}>

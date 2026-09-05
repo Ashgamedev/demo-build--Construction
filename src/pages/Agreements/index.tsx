@@ -1,13 +1,27 @@
 import { Routes, Route, useNavigate } from 'react-router-dom';
 import { AgreementBuilder } from './Builder';
 import { useAgreementStore } from '../../store/agreementStore';
+import { useCompanySettingsStore } from '../../store/companySettingsStore';
 import { useEffect } from 'react';
-import { FileSignature, Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 
 function AgreementList() {
-  const { agreements, loading, subscribeAgreements, fetchVersions, versions, deleteAgreement } = useAgreementStore();
+  const { agreements, loading, subscribeAgreements, fetchVersions, versions, deleteAgreement, createBlankFreeformAgreement } = useAgreementStore();
+  const { settings, fetchSettings } = useCompanySettingsStore();
   const navigate = useNavigate();
+
+  useEffect(() => { if (!settings) fetchSettings(); }, [settings, fetchSettings]);
+
+  const handleNewLetterpad = async () => {
+    if (!settings) return alert('Company settings still loading, please try again in a moment.');
+    try {
+      const newId = await createBlankFreeformAgreement(settings);
+      navigate(`/agreements/${newId}/edit`);
+    } catch (e: any) {
+      alert('Failed to create agreement: ' + (e?.message || e));
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = subscribeAgreements();
@@ -36,12 +50,20 @@ function AgreementList() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-semibold text-gray-900">Agreements</h1>
-        <button 
-          onClick={() => navigate('/quotations')} // agreements originate from quotations
-          className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center"
-        >
-          <Plus className="w-5 h-5 mr-2" /> New from Quotation
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={handleNewLetterpad}
+            className="bg-white text-blue-700 border border-blue-300 px-4 py-2 rounded-md hover:bg-blue-50 flex items-center"
+          >
+            <FileText className="w-5 h-5 mr-2" /> New Letter-pad Agreement
+          </button>
+          <button
+            onClick={() => navigate('/quotations')} // agreements originate from quotations
+            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center"
+          >
+            <Plus className="w-5 h-5 mr-2" /> New from Quotation
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-lg shadow border border-gray-200">

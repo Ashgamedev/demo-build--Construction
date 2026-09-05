@@ -4,7 +4,7 @@ import { useAgreementStore } from '../../store/agreementStore';
 import { useQuotationStore } from '../../store/quotationStore';
 import { useProjectStore } from '../../store/projectStore';
 import { useCustomerStore } from '../../store/customerStore';
-import { AgreementVersion } from '../../types';
+import { AgreementVersion, FreeformColumn, FreeformRow, PaymentScheduleLine } from '../../types';
 import { ArrowLeft, Save, Plus, Trash2, GripVertical, AlertTriangle, CheckCircle2, Upload, FileText, X } from 'lucide-react';
 import { PDFDownloadLink, PDFViewer } from '@react-pdf/renderer';
 import { AgreementPDF } from '../../components/pdf/AgreementPDF';
@@ -185,6 +185,16 @@ export function AgreementBuilder() {
         stampPaperFileName: activeVersion.stampPaperFileName,
         stampPaperUploadedAt: activeVersion.stampPaperUploadedAt,
         printOnStampPaper: activeVersion.printOnStampPaper,
+        // Free-form (letter-pad) agreement fields - harmless no-ops on a
+        // standard agreement, which leaves them undefined.
+        subject: activeVersion.subject,
+        clientName: activeVersion.clientName,
+        siteName: activeVersion.siteName,
+        format: activeVersion.format,
+        freeformTitle: activeVersion.freeformTitle,
+        freeformColumns: activeVersion.freeformColumns,
+        freeformRows: activeVersion.freeformRows,
+        freeformSummary: activeVersion.freeformSummary,
       });
       alert('Saved successfully');
     } catch (e: any) {
@@ -637,6 +647,21 @@ export function AgreementBuilder() {
   if (!activeVersion)
     return <div className="p-8">Loading agreement...</div>;
 
+  // Letter-pad agreements get their own self-contained editor - the standard
+  // wizard below is built around a quotation and a milestone schedule, which a
+  // free-form agreement doesn't have.
+  if (activeVersion.format === 'freeform') {
+    return (
+      <FreeformAgreementEditor
+        version={activeVersion}
+        loading={loading}
+        onChange={patch => setActiveVersion({ ...activeVersion, ...patch })}
+        onSave={handleSave}
+        onBack={() => navigate('/agreements')}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6 pb-20">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -1058,6 +1083,197 @@ function StampPaperPanel({
         <b>Before printing on stamp paper:</b> print one test copy on plain A4 first and hold
         it against the stamp paper to check the spacing. Adjust the printer margins if the
         text overlaps the stamp header.
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The letter-pad (free-form) agreement editor.
+ *
+ * Self-contained on purpose: the standard agreement editor is a wizard built
+ * around a quotation and a milestone schedule, neither of which a free-form
+ * agreement has. This one edits a user-defined table plus a payment schedule,
+ * terms, the stamp-paper options, and the signature toggle - the same building
+ * blocks the client uses on paper. It reuses StampPaperPanel and the live
+ * AgreementPDF preview so a letter-pad agreement behaves like any other.
+ */
+function FreeformAgreementEditor({
+  version,
+  loading,
+  onChange,
+  onSave,
+  onBack,
+}: {
+  version: AgreementVersion;
+  loading: boolean;
+  onChange: (patch: Partial<AgreementVersion>) => void;
+  onSave: () => void;
+  onBack: () => void;
+}) {
+  const genId = () => (crypto?.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+  const columns = version.freeformColumns || [];
+  const rows = version.freeformRows || [];
+  const schedule: PaymentScheduleLine[] = (version.paymentSchedule as any) || [];
+
+  const setColumns = (cols: FreeformColumn[]) => onChange({ freeformColumns: cols });
+  const setRows = (rs: FreeformRow[]) => onChange({ freeformRows: rs });
+  const setSchedule = (s: PaymentScheduleLine[]) => onChange({ paymentSchedule: s as any });
+
+  const pctTotal = schedule.reduce((s, l) => s + (Number(l.percentage) || 0), 0);
+  const amtTotal = schedule.reduce((s, l) => s + (Number(l.amount) || 0), 0);
+
+  return (
+    <div className="space-y-6 pb-20">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <button onClick={onBack} className="text-gray-500 hover:text-gray-700"><ArrowLeft className="w-6 h-6" /></button>
+          <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Letter-pad Agreement</h1>
+        </div>
+        <button onClick={onSave} disabled={loading} className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center disabled:opacity-50">
+          <Save className="w-5 h-5 mr-2" /> {loading ? 'Saving...' : 'Save Changes'}
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="space-y-6">
+          {/* Parties */}
+          <div className="bg-white rounded-lg shadow p-6 border border-gray-200 space-y-4">
+            <h2 className="text-lg font-medium border-b pb-2">Details</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Client Name</label>
+                <input type="text" value={version.clientName} onChange={e => onChange({ clientName: e.target.value })} className="mt-1 block w-full border border-gray-300 rounded p-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Place / Site</label>
+                <input type="text" value={version.siteName} onChange={e => onChange({ siteName: e.target.value })} className="mt-1 block w-full border border-gray-300 rounded p-2 text-sm" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Subject (optional)</label>
+              <input type="text" value={version.subject} onChange={e => onChange({ subject: e.target.value })} placeholder="e.g. Construction of residential building" className="mt-1 block w-full border border-gray-300 rounded p-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Heading above the table</label>
+              <input type="text" value={version.freeformTitle || ''} onChange={e => onChange({ freeformTitle: e.target.value })} placeholder="e.g. Statement of Specification" className="mt-1 block w-full border border-gray-300 rounded p-2 text-sm" />
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="bg-white rounded-lg shadow p-6 border border-gray-200 space-y-4">
+            <div className="flex items-center justify-between border-b pb-2">
+              <h2 className="text-lg font-medium">Table</h2>
+              <button type="button" onClick={() => setColumns([...columns, { id: genId(), name: 'New column', align: 'left' }])} className="text-sm text-blue-600 hover:text-blue-800">+ Add column</button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {columns.map(col => (
+                <div key={col.id} className="flex items-center gap-1 bg-gray-50 border border-gray-300 rounded px-2 py-1">
+                  <input type="text" value={col.name} onChange={e => setColumns(columns.map(c => c.id === col.id ? { ...c, name: e.target.value } : c))} className="text-xs bg-transparent border-b border-transparent focus:border-blue-400 focus:outline-none w-28" />
+                  <button type="button" onClick={() => setColumns(columns.map(c => c.id === col.id ? { ...c, align: c.align === 'right' ? 'left' : 'right' } : c))} title="Toggle left / right alignment" className="text-[10px] text-gray-500 border border-gray-200 rounded px-1">{col.align === 'right' ? 'R' : 'L'}</button>
+                  <button type="button" onClick={() => setColumns(columns.filter(c => c.id !== col.id))} className="text-gray-400 hover:text-red-600 text-xs">✕</button>
+                </div>
+              ))}
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 text-xs text-gray-500 uppercase">
+                    {columns.map(col => <th key={col.id} className="px-1 py-1 text-left font-medium">{col.name}</th>)}
+                    <th className="px-1 py-1"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map(row => (
+                    <tr key={row.id}>
+                      {columns.map(col => (
+                        <td key={col.id} className="px-1 py-1">
+                          <input type="text" value={row.cells?.[col.id] || ''} onChange={e => setRows(rows.map(r => r.id === row.id ? { ...r, cells: { ...r.cells, [col.id]: e.target.value } } : r))} className="w-full min-w-[90px] border border-gray-300 rounded p-1 text-xs" />
+                        </td>
+                      ))}
+                      <td className="px-1 py-1 text-center">
+                        <button type="button" onClick={() => setRows(rows.filter(r => r.id !== row.id))} className="text-red-400 hover:text-red-600 text-xs">✕</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <button type="button" onClick={() => setRows([...rows, { id: genId(), cells: {} }])} className="text-xs text-blue-600 hover:text-blue-800">+ Add row</button>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Summary line (optional)</label>
+              <input type="text" value={version.freeformSummary || ''} onChange={e => onChange({ freeformSummary: e.target.value })} placeholder="e.g. Quotation Value : 550/- x 3,783.625 sft = 20,95,500" className="block w-full border border-gray-300 rounded p-2 text-sm" />
+            </div>
+          </div>
+
+          {/* Payment schedule */}
+          <div className="bg-white rounded-lg shadow p-6 border border-gray-200 space-y-3">
+            <div className="flex items-center justify-between border-b pb-2">
+              <h2 className="text-lg font-medium">Payment Schedule</h2>
+              <button type="button" onClick={() => setSchedule([...schedule, { id: genId(), description: '', percentage: 0, amount: 0 }])} className="text-sm text-blue-600 hover:text-blue-800">+ Add line</button>
+            </div>
+            {schedule.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-xs text-gray-500 uppercase bg-gray-50">
+                    <tr><th className="px-1 py-1 text-left">Description of Work</th><th className="px-1 py-1 w-16">%</th><th className="px-1 py-1 w-28">Amount</th><th className="px-1 py-1"></th></tr>
+                  </thead>
+                  <tbody>
+                    {schedule.map(line => (
+                      <tr key={line.id}>
+                        <td className="px-1 py-1"><input type="text" value={line.description} onChange={e => setSchedule(schedule.map(l => l.id === line.id ? { ...l, description: e.target.value } : l))} className="w-full border border-gray-300 rounded p-1 text-xs" /></td>
+                        <td className="px-1 py-1"><input type="number" value={line.percentage || ''} onChange={e => setSchedule(schedule.map(l => l.id === line.id ? { ...l, percentage: Number(e.target.value) } : l))} className="w-14 border border-gray-300 rounded p-1 text-xs" /></td>
+                        <td className="px-1 py-1"><input type="number" value={line.amount || ''} onChange={e => setSchedule(schedule.map(l => l.id === line.id ? { ...l, amount: Number(e.target.value) } : l))} className="w-24 border border-gray-300 rounded p-1 text-xs" /></td>
+                        <td className="px-1 py-1 text-center"><button type="button" onClick={() => setSchedule(schedule.filter(l => l.id !== line.id))} className="text-red-400 hover:text-red-600 text-xs">✕</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="font-semibold text-gray-700">
+                      <td className="px-1 py-1 text-right">Total</td>
+                      <td className="px-1 py-1">{pctTotal}%</td>
+                      <td className="px-1 py-1">₹{amtTotal.toLocaleString('en-IN')}</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+            <p className="text-xs text-gray-400">The percentages should add up to 100%.</p>
+          </div>
+
+          {/* Terms */}
+          <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
+            <h2 className="text-lg font-medium border-b pb-2 mb-4">Terms & Conditions (optional)</h2>
+            <textarea value={version.termsAndConditions} onChange={e => onChange({ termsAndConditions: e.target.value })} className="w-full border border-gray-300 rounded p-3 text-sm h-40 font-mono" placeholder="Any conditions to print under the schedule..." />
+          </div>
+
+          {/* Signature toggle */}
+          <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input type="checkbox" checked={!!version.showOwnerSignature} onChange={e => onChange({ showOwnerSignature: e.target.checked })} className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
+              <span className="text-sm font-medium text-gray-900">Print my signature on this agreement</span>
+            </label>
+          </div>
+
+          <StampPaperPanel agreement={version} onChange={onChange} />
+        </div>
+
+        {/* Live PDF preview (desktop/tablet) */}
+        <div className="h-[calc(100vh-120px)] lg:sticky lg:top-6">
+          <div className="bg-gray-100 rounded-lg border border-gray-200 h-full overflow-hidden shadow-inner flex flex-col">
+            <div className="w-full bg-gray-800 text-white text-sm font-medium flex justify-between items-center p-3">
+              <span>Agreement Preview</span>
+              <PDFDownloadLink document={<AgreementPDF agreement={version} />} fileName={`Agreement-${version.agreementNumber}.pdf`} className="text-blue-400 hover:text-blue-300">
+                {/* @ts-ignore */}
+                {({ loading: pdfLoading }) => (pdfLoading ? 'Preparing...' : 'Download PDF')}
+              </PDFDownloadLink>
+            </div>
+            <PDFViewer width="100%" height="100%" className="border-0 bg-gray-50 flex-1">
+              <AgreementPDF agreement={version} />
+            </PDFViewer>
+          </div>
+        </div>
       </div>
     </div>
   );

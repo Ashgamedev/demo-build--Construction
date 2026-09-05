@@ -2,9 +2,11 @@ import { create } from 'zustand';
 import { collection, doc, getDocs, query, where, onSnapshot, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { setDocSafe as setDoc } from '../lib/firestoreSafe';
 import { db } from '../lib/firebase';
-import { Agreement, AgreementVersion, QuotationVersion } from '../types';
+import { Agreement, AgreementVersion, QuotationVersion, CompanySettings } from '../types';
 import { calculateMilestoneAmount } from '../utils/currencyMath';
 import { currentActor } from '../lib/audit';
+
+const genId = () => (crypto?.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
 
 interface AgreementState {
   agreements: Agreement[];
@@ -20,6 +22,7 @@ interface AgreementState {
     paymentSchedule: AgreementVersion['paymentSchedule'],
     quotationValue?: number
   ) => Promise<string>;
+  createBlankFreeformAgreement: (companySnapshot: CompanySettings, customerId?: string) => Promise<string>;
   updateVersion: (versionId: string, updates: Partial<AgreementVersion>) => Promise<void>;
   generateNewVersion: (agreementId: string, payload: Partial<AgreementVersion>) => Promise<void>;
   deleteAgreement: (agreementId: string) => Promise<void>;
@@ -160,10 +163,79 @@ export const useAgreementStore = create<AgreementState>((set, _get) => ({
     }
   },
 
+  createBlankFreeformAgreement: async (companySnapshot: CompanySettings, customerId?: string) => {
+    try {
+      set({ loading: true, error: null });
+      const newAgreementRef = doc(collection(db, 'agreements'));
+      const newVersionRef = doc(collection(db, 'agreementVersions'));
+
+      const initialVersion: AgreementVersion = {
+        id: newVersionRef.id,
+        agreementId: newAgreementRef.id,
+        versionNumber: 1,
+        agreementNumber: `AGR-${Date.now()}`,
+        date: Date.now(),
+        format: 'freeform',
+        subject: '',
+        clientName: '',
+        siteName: '',
+        totalValue: 0,
+        // A sensible starting table so the editor isn't a blank slate.
+        freeformTitle: 'Statement of Specification',
+        freeformColumns: [
+          { id: genId(), name: 'Description', align: 'left' },
+          { id: genId(), name: 'Measurement', align: 'left' },
+          { id: genId(), name: 'Amount', align: 'right' },
+        ],
+        freeformRows: [{ id: genId(), cells: {} }],
+        freeformSummary: '',
+        paymentSchedule: [],
+        termsAndConditions: '',
+        scopeOfWork: '',
+        signatures: { clientSigned: false, contractorSigned: false },
+        companySnapshot,
+        language: 'en',
+        isLocked: false,
+        createdAt: Date.now(),
+        createdBy: currentActor().id,
+      };
+
+      const newAgreement: Partial<Agreement> = {
+        customerId: customerId || '',
+        status: 'Draft',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      await setDoc(newVersionRef, initialVersion);
+      await setDoc(newAgreementRef, newAgreement);
+      return newAgreementRef.id;
+    } catch (error: any) {
+      console.error(error);
+      set({ error: error.message });
+      throw error;
+    } finally {
+      set({ loading: false });
+    }
+  },
+
   updateVersion: async (versionId: string, updates: Partial<AgreementVersion>) => {
     try {
       const versionRef = doc(db, 'agreementVersions', versionId);
       await setDoc(versionRef, { ...updates, updatedAt: serverTimestamp() }, { merge: true });
+
+      // Keep the local cache in step. fetchVersions only fetches an agreement
+      // once (it's a one-time read, not a live subscription), so without this
+      // the editor re-reads stale values after a save-navigate-reopen and the
+      // save looks like it was lost. Affects standard agreements too - this is
+      // the central fix.
+      set(state => {
+        const versions = { ...state.versions };
+        for (const aggId of Object.keys(versions)) {
+          versions[aggId] = versions[aggId].map(v => v.id === versionId ? { ...v, ...updates } : v);
+        }
+        return { versions };
+      });
     } catch (error: any) {
       console.error('Error updating version:', error);
       throw error;

@@ -358,6 +358,16 @@ export interface AgreementVersion {
    *  header, and the Deepthi letterhead is suppressed. */
   printOnStampPaper?: boolean;
 
+  /** 'standard' (default) is the structured agreement built from a quotation.
+   *  'freeform' is the letter-pad agreement: a user-defined table plus the
+   *  payment schedule, written freely rather than compiled from a quotation. */
+  format?: 'standard' | 'freeform';
+  // Free-form (letter-pad) agreement data - only used when format === 'freeform'.
+  freeformTitle?: string;
+  freeformColumns?: FreeformColumn[];
+  freeformRows?: FreeformRow[];
+  freeformSummary?: string;
+
   // Override tracking (for locking with schedule mismatch)
   overrideReason?: string;
   overrideBy?: string;
