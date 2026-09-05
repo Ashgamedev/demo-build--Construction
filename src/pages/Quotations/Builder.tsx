@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useQuotationStore } from '../../store/quotationStore';
 import { useCustomerStore } from '../../store/customerStore';
 import { useCompanySettingsStore } from '../../store/companySettingsStore';
-import { QuotationType, QuotationVersion, LabourQuotationItem, LabourScopeItem, FullSpecItem, MeasurementGroup, MeasurementItem, MeasurementDimension, MeasurementColumn } from '../../types';
+import { QuotationType, QuotationVersion, LabourQuotationItem, LabourScopeItem, FullSpecItem, MeasurementGroup, MeasurementItem, MeasurementDimension, MeasurementColumn, FreeformColumn, FreeformRow, PaymentScheduleLine } from '../../types';
 import { Save, ArrowLeft, Download, Languages, Loader2 } from 'lucide-react';
 import { translateTexts } from '../../utils/translateService';
 import { PDFViewer, PDFDownloadLink } from '@react-pdf/renderer';
@@ -137,6 +137,18 @@ export function QuotationBuilder() {
   // User-defined extra columns for the measurement bill (Type C).
   const [measurementColumns, setMeasurementColumns] = useState<MeasurementColumn[]>([]);
 
+  // Free-form / letter-pad (Type D). Seeded with a sensible starting table so
+  // a new one isn't a blank slate.
+  const [freeformTitle, setFreeformTitle] = useState('Statement of Specification');
+  const [freeformColumns, setFreeformColumns] = useState<FreeformColumn[]>([
+    { id: generateId(), name: 'Description', align: 'left' },
+    { id: generateId(), name: 'Measurement', align: 'left' },
+    { id: generateId(), name: 'Amount', align: 'right' },
+  ]);
+  const [freeformRows, setFreeformRows] = useState<FreeformRow[]>([{ id: generateId(), cells: {} }]);
+  const [freeformSummary, setFreeformSummary] = useState('');
+  const [paymentSchedule, setPaymentSchedule] = useState<PaymentScheduleLine[]>([]);
+
   /** The version being edited. Needed to save back to the right document. */
   const [currentVersionId, setCurrentVersionId] = useState<string | null>(null);
   const [loadingExisting, setLoadingExisting] = useState(false);
@@ -183,6 +195,11 @@ export function QuotationBuilder() {
         if (v.fullSpecItems) setFullSpecItems(v.fullSpecItems);
         if (v.measurementGroups) setMeasurementGroups(v.measurementGroups);
         if (v.measurementColumns) setMeasurementColumns(v.measurementColumns);
+        if (v.freeformTitle !== undefined) setFreeformTitle(v.freeformTitle);
+        if (v.freeformColumns) setFreeformColumns(v.freeformColumns);
+        if (v.freeformRows) setFreeformRows(v.freeformRows);
+        if (v.freeformSummary !== undefined) setFreeformSummary(v.freeformSummary);
+        if (v.paymentSchedule) setPaymentSchedule(v.paymentSchedule);
       }
       if (family?.customerId) setCustomerId(family.customerId);
 
@@ -287,6 +304,12 @@ export function QuotationBuilder() {
       } else if (type === 'measurement') {
         payload.measurementGroups = measurementGroups;
         payload.measurementColumns = measurementColumns;
+      } else if (type === 'freeform') {
+        payload.freeformTitle = freeformTitle;
+        payload.freeformColumns = freeformColumns;
+        payload.freeformRows = freeformRows;
+        payload.freeformSummary = freeformSummary;
+        payload.paymentSchedule = paymentSchedule;
       }
 
       if (id) {
@@ -331,11 +354,18 @@ export function QuotationBuilder() {
     fullSpecRate,
     fullSpecItems,
     measurementGroups,
-    measurementColumns
+    measurementColumns,
+    freeformTitle,
+    freeformColumns,
+    freeformRows,
+    freeformSummary,
+    paymentSchedule,
+    showOwnerSignature,
   } as QuotationVersion), [
     type, subject, clientName, contractorName, siteName, notes, settings,
     language, tamilData, previewDate, labourItems, labourScope,
     fullSpecRate, fullSpecItems, measurementGroups, measurementColumns,
+    freeformTitle, freeformColumns, freeformRows, freeformSummary, paymentSchedule, showOwnerSignature,
   ]);
 
   /**
@@ -496,6 +526,7 @@ export function QuotationBuilder() {
                   <option value="labour">Type A: Labour Quotation</option>
                   <option value="full_spec">Type B: Full Specification</option>
                   <option value="measurement">Type C: Measurement Bill</option>
+                  <option value="freeform">Type D: Letter-pad (free-form)</option>
                 </select>
               </div>
               <div>
@@ -1022,13 +1053,175 @@ export function QuotationBuilder() {
             </div>
           )}
 
+          {type === 'freeform' && (
+            <div className="bg-white rounded-lg shadow p-6 border border-gray-200 space-y-5">
+              <h2 className="text-lg font-medium border-b pb-2">Letter-pad (free-form) quotation</h2>
+              <p className="text-xs text-gray-500 -mt-2">
+                Build the quotation exactly as you would write it by hand. Name the columns, fill the
+                rows, and add a payment schedule underneath.
+              </p>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Heading above the table</label>
+                <input
+                  type="text"
+                  value={freeformTitle}
+                  onChange={e => setFreeformTitle(e.target.value)}
+                  placeholder="e.g. Statement of Specification"
+                  className="block w-full border border-gray-300 rounded p-2 text-sm"
+                />
+              </div>
+
+              {/* Columns manager */}
+              <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-700">Columns</span>
+                  <button
+                    type="button"
+                    onClick={() => setFreeformColumns(c => [...c, { id: generateId(), name: 'New column', align: 'left' }])}
+                    className="text-sm text-blue-600 hover:text-blue-800"
+                  >+ Add column</button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {freeformColumns.map(col => (
+                    <div key={col.id} className="flex items-center gap-1 bg-white border border-gray-300 rounded px-2 py-1">
+                      <input
+                        type="text"
+                        value={col.name}
+                        onChange={e => setFreeformColumns(cs => cs.map(c => c.id === col.id ? { ...c, name: e.target.value } : c))}
+                        className="text-xs border-b border-transparent focus:border-blue-400 focus:outline-none w-28"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setFreeformColumns(cs => cs.map(c => c.id === col.id ? { ...c, align: c.align === 'right' ? 'left' : 'right' } : c))}
+                        title="Toggle left / right alignment"
+                        className="text-[10px] text-gray-500 border border-gray-200 rounded px-1"
+                      >{col.align === 'right' ? 'R' : 'L'}</button>
+                      <button
+                        type="button"
+                        onClick={() => setFreeformColumns(cs => cs.filter(c => c.id !== col.id))}
+                        className="text-gray-400 hover:text-red-600 text-xs"
+                      >✕</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Rows */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="bg-gray-50 text-xs text-gray-500 uppercase">
+                      {freeformColumns.map(col => (
+                        <th key={col.id} className="px-1 py-1 text-left font-medium">{col.name}</th>
+                      ))}
+                      <th className="px-1 py-1"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {freeformRows.map(row => (
+                      <tr key={row.id}>
+                        {freeformColumns.map(col => (
+                          <td key={col.id} className="px-1 py-1">
+                            <input
+                              type="text"
+                              value={row.cells?.[col.id] || ''}
+                              onChange={e => setFreeformRows(rs => rs.map(r => r.id === row.id ? { ...r, cells: { ...r.cells, [col.id]: e.target.value } } : r))}
+                              className="w-full min-w-[90px] border border-gray-300 rounded p-1 text-xs"
+                            />
+                          </td>
+                        ))}
+                        <td className="px-1 py-1 text-center">
+                          <button
+                            type="button"
+                            onClick={() => setFreeformRows(rs => rs.filter(r => r.id !== row.id))}
+                            className="text-red-400 hover:text-red-600 text-xs"
+                          >✕</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFreeformRows(rs => [...rs, { id: generateId(), cells: {} }])}
+                className="text-xs text-blue-600 hover:text-blue-800"
+              >+ Add row</button>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Summary line (optional)</label>
+                <input
+                  type="text"
+                  value={freeformSummary}
+                  onChange={e => setFreeformSummary(e.target.value)}
+                  placeholder="e.g. Quotation Value : 550/- x 3,783.625 sft = 20,95,500"
+                  className="block w-full border border-gray-300 rounded p-2 text-sm"
+                />
+              </div>
+
+              {/* Payment schedule */}
+              <div className="border-t border-gray-100 pt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-semibold text-gray-800">Payment schedule</h3>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentSchedule(p => [...p, { id: generateId(), description: '', percentage: 0, amount: 0 }])}
+                    className="text-sm text-blue-600 hover:text-blue-800"
+                  >+ Add line</button>
+                </div>
+                {paymentSchedule.length > 0 && (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="text-xs text-gray-500 uppercase bg-gray-50">
+                        <tr>
+                          <th className="px-1 py-1 text-left">Description of Work</th>
+                          <th className="px-1 py-1 w-16">%</th>
+                          <th className="px-1 py-1 w-28">Amount</th>
+                          <th className="px-1 py-1"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paymentSchedule.map(line => (
+                          <tr key={line.id}>
+                            <td className="px-1 py-1">
+                              <input type="text" value={line.description} onChange={e => setPaymentSchedule(p => p.map(l => l.id === line.id ? { ...l, description: e.target.value } : l))} className="w-full border border-gray-300 rounded p-1 text-xs" />
+                            </td>
+                            <td className="px-1 py-1">
+                              <input type="number" value={line.percentage || ''} onChange={e => setPaymentSchedule(p => p.map(l => l.id === line.id ? { ...l, percentage: Number(e.target.value) } : l))} className="w-14 border border-gray-300 rounded p-1 text-xs" />
+                            </td>
+                            <td className="px-1 py-1">
+                              <input type="number" value={line.amount || ''} onChange={e => setPaymentSchedule(p => p.map(l => l.id === line.id ? { ...l, amount: Number(e.target.value) } : l))} className="w-24 border border-gray-300 rounded p-1 text-xs" />
+                            </td>
+                            <td className="px-1 py-1 text-center">
+                              <button type="button" onClick={() => setPaymentSchedule(p => p.filter(l => l.id !== line.id))} className="text-red-400 hover:text-red-600 text-xs">✕</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="font-semibold text-gray-700">
+                          <td className="px-1 py-1 text-right">Total</td>
+                          <td className="px-1 py-1">{paymentSchedule.reduce((s, l) => s + (Number(l.percentage) || 0), 0)}%</td>
+                          <td className="px-1 py-1">₹{paymentSchedule.reduce((s, l) => s + (Number(l.amount) || 0), 0).toLocaleString('en-IN')}</td>
+                          <td></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
+                <p className="text-xs text-gray-400 mt-1">The percentages should add up to 100%.</p>
+              </div>
+            </div>
+          )}
+
           <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
             <h2 className="text-lg font-medium border-b pb-2 mb-4">Notes & Terms</h2>
-            <textarea 
+            <textarea
               value={isTa ? (t.notes || '') : notes}
               onChange={e => handleInputChange('notes', e.target.value)}
               placeholder={isTa ? notes : 'General notes or exclusions...'}
-              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 text-sm font-mono" 
+              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 text-sm font-mono"
               rows={8}
             />
           </div>

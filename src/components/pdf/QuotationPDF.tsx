@@ -2,6 +2,7 @@ import { QuotationVersion } from '../../types';
 import { TypeALabourPDF } from './TypeALabour';
 import { TypeBFullSpecPDF } from './TypeBFullSpec';
 import { TypeCMeasurementPDF } from './TypeCMeasurement';
+import { TypeDFreeformPDF } from './TypeDFreeform';
 import { registerPDFFonts } from '../../utils/pdfFonts';
 
 registerPDFFonts();
@@ -18,6 +19,8 @@ export function QuotationPDF({ quotation }: Props) {
       return <TypeBFullSpecPDF quotation={quotation} />;
     case 'measurement':
       return <TypeCMeasurementPDF quotation={quotation} />;
+    case 'freeform':
+      return <TypeDFreeformPDF quotation={quotation} />;
     default:
       return null;
   }

@@ -111,7 +111,29 @@ export interface SiteVisit {
   createdAt: number;
 }
 
-export type QuotationType = 'labour' | 'full_spec' | 'measurement';
+export type QuotationType = 'labour' | 'full_spec' | 'measurement' | 'freeform';
+
+/** A column in the free-form (letter-pad) quotation table. */
+export interface FreeformColumn {
+  id: string;
+  name: string;
+  align?: 'left' | 'right';
+}
+
+/** A row in the free-form table. Cells are keyed by FreeformColumn.id. */
+export interface FreeformRow {
+  id: string;
+  cells: Record<string, string>;
+}
+
+/** One line of a payment schedule - shared by the free-form quotation and the
+ *  agreement. */
+export interface PaymentScheduleLine {
+  id: string;
+  description: string;
+  percentage: number;
+  amount: number;
+}
 
 export interface CompanySettings {
   name: string;
@@ -230,6 +252,15 @@ export interface QuotationVersion {
   /** Extra user-defined columns shown on every dimension row of this
    *  measurement quotation, after the fixed L/W/H/Nos columns. */
   measurementColumns?: MeasurementColumn[];
+
+  // Type D: Free-form / Letter-pad data. A fully user-defined table (the owner
+  // names the columns and fills the rows), an optional payment schedule, and a
+  // free summary line - reproducing the quotations he writes by hand.
+  freeformTitle?: string;        // heading above the table, e.g. "Statement of Specification"
+  freeformColumns?: FreeformColumn[];
+  freeformRows?: FreeformRow[];
+  freeformSummary?: string;      // e.g. "Quotation Value : 550/- x 3,783.625 sft = 20,95,500"
+  paymentSchedule?: PaymentScheduleLine[];
   
   // Immutable snapshot of letterhead
   companySnapshot: CompanySettings;
